@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getSession, createSession, updateSession, getChampions, getPlayers } from "../lib/api";
 import { ROLES, ROLE_LABELS, MAX_CHAMPIONS, type Role, type SessionPlayer, type Champion } from "../types";
-import { todayISO } from "../lib/utils";
+import { todayISO, findTeamPlayer, resolveSessionPlayer } from "../lib/utils";
 import { championIcon } from "../lib/ddragon";
 import { btnPrimary, btnGhost, panel, input, label, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -66,15 +66,11 @@ export default function SessionForm() {
     setPlayers([...players, { name: "", role: nextFreeRole(players), champions: [] }]);
   };
 
-  // Scegliendo un giocatore del team si copiano anche Riot ID e regione (se presenti)
-  const selectTeamPlayer = (index: number, name: string) => {
-    const team = teamPlayers.find((p) => p.name === name);
-    const { riotId: _r, region: _g, ...rest } = players[index];
-    setPlayers(
-      players.map((p, i) =>
-        i === index ? { ...rest, name, ...(team?.riotId && team.region ? { riotId: team.riotId, region: team.region } : {}) } : p,
-      ),
-    );
+  // Scegliendo un giocatore del roster si salvano id, nome e (se presenti) Riot ID e regione
+  const selectTeamPlayer = (index: number, teamPlayerId: string) => {
+    const team = teamPlayers.find((p) => p.id === teamPlayerId);
+    if (!team) return;
+    setPlayers(players.map((p, i) => (i === index ? resolveSessionPlayer({ ...p, playerId: team.id }, teamPlayers) : p)));
   };
 
   const removePlayer = (index: number) => setPlayers(players.filter((_, i) => i !== index));
@@ -105,7 +101,8 @@ export default function SessionForm() {
       alert("Compila tutti i campi: ogni giocatore deve avere un nome, un ruolo univoco e almeno un campione.");
       return;
     }
-    mutation.mutate({ date, time, players, notes });
+    // Allinea nomi e Riot ID dei giocatori ai dati attuali del roster prima di salvare
+    mutation.mutate({ date, time, players: players.map((p) => resolveSessionPlayer(p, teamPlayers)), notes });
   };
 
   if (loadingChampions || loadingPlayers) return <LoadingSpinner />;
@@ -147,6 +144,8 @@ export default function SessionForm() {
 
           {players.map((player, index) => {
             const full = player.champions.length >= MAX_CHAMPIONS;
+            const shown = resolveSessionPlayer(player, teamPlayers);
+            const inRoster = !!findTeamPlayer(player, teamPlayers);
             const available = sortedChampions.filter((c) => !player.champions.some((p) => p.id === c.id));
             return (
               <div key={index} className={`${panel} space-y-4`}>
@@ -161,12 +160,19 @@ export default function SessionForm() {
                   <div>
                     <div className="flex items-center justify-between">
                       <label className={label}>Giocatore</label>
-                      <OpggButton riotId={player.riotId} region={player.region} />
+                      <OpggButton riotId={shown.riotId} region={shown.region} />
                     </div>
-                    <select value={player.name} onChange={(e) => selectTeamPlayer(index, e.target.value)} className={input}>
+                    <select
+                      value={inRoster ? findTeamPlayer(player, teamPlayers)!.id : player.name ? "__removed" : ""}
+                      onChange={(e) => selectTeamPlayer(index, e.target.value)}
+                      className={input}
+                    >
                       <option value="">Seleziona...</option>
+                      {!inRoster && player.name && (
+                        <option value="__removed" disabled>{player.name} (non più nel roster)</option>
+                      )}
                       {teamPlayers.map((p) => (
-                        <option key={p.id} value={p.name}>{p.name}</option>
+                        <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
                   </div>

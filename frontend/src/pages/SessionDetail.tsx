@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getSession, deleteSession } from "../lib/api";
+import { getSession, deleteSession, getPlayers } from "../lib/api";
 import { ROLE_COLORS, ROLE_LABELS } from "../types";
 import { championIcon } from "../lib/ddragon";
-import { formatDate, formatTime, isPastSession, googleCalendarUrl } from "../lib/utils";
+import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer } from "../lib/utils";
 import { btnPrimary, btnGhost, btnDanger, panel, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
@@ -18,6 +18,9 @@ export default function SessionDetail() {
     queryFn: () => getSession(id!),
     enabled: !!id,
   });
+
+  // Il roster aggiorna nome, Riot ID e regione; se non carica restano i dati salvati nella sessione
+  const { data: teamPlayers = [] } = useQuery({ queryKey: ["players"], queryFn: getPlayers });
 
   if (isLoading) return <LoadingSpinner />;
   if (error || !session) return <p className="text-red-400">Sessione non trovata.</p>;
@@ -58,7 +61,9 @@ export default function SessionDetail() {
       <section className="space-y-4">
         <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Composizione team</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {session.players.map((p, i) => (
+          {session.players.map((raw, i) => {
+            const p = resolveSessionPlayer(raw, teamPlayers);
+            return (
             <div
               key={i}
               className="rounded-md border border-lol-gold-dark bg-lol-panel/80 p-5"
@@ -84,7 +89,8 @@ export default function SessionDetail() {
                 {p.champions.length === 0 && <span className="text-sm text-lol-text/40">Nessun campione</span>}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

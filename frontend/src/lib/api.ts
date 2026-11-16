@@ -32,6 +32,7 @@ function normalizeSession(raw: any): Session {
   return {
     ...raw,
     players: (raw.players ?? []).map((p: any) => ({
+      ...(p.playerId ? { playerId: p.playerId } : {}),
       name: p.name,
       role: p.role,
       ...(p.riotId && p.region ? { riotId: p.riotId, region: p.region } : {}),

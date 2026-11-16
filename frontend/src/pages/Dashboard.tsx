@@ -1,10 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { getSessions, deleteSession } from "../lib/api";
+import { getSessions, deleteSession, getPlayers } from "../lib/api";
 import { ROLE_COLORS, ROLE_LABELS } from "../types";
 import { championIcon } from "../lib/ddragon";
-import { formatDate, formatTime, isPastSession, googleCalendarUrl } from "../lib/utils";
-import { btnPrimary, btnGhost, btnDanger, pageTitle } from "../lib/styles";
+import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer } from "../lib/utils";
+import { btnPrimary, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 
 export default function Dashboard() {
@@ -13,6 +13,9 @@ export default function Dashboard() {
     queryKey: ["sessions"],
     queryFn: getSessions,
   });
+
+  // Il roster serve solo ad aggiornare i nomi: se non carica si usano quelli salvati nelle sessioni
+  const { data: teamPlayers = [] } = useQuery({ queryKey: ["players"], queryFn: getPlayers });
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <p className="text-red-400">Errore nel caricamento delle sessioni.</p>;
@@ -70,7 +73,9 @@ export default function Dashboard() {
                 </header>
 
                 <ul className="space-y-3 p-5">
-                  {s.players.map((p, i) => (
+                  {s.players.map((raw, i) => {
+                    const p = resolveSessionPlayer(raw, teamPlayers);
+                    return (
                     <li key={i} className="flex items-center gap-3">
                       <span
                         className="w-16 shrink-0 border py-0.5 text-center font-display text-[10px] font-bold uppercase tracking-wider"
@@ -91,7 +96,8 @@ export default function Dashboard() {
                         ))}
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                   {s.players.length === 0 && <li className="text-sm text-lol-text/50">Nessun giocatore</li>}
                 </ul>
 

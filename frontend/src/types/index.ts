@@ -41,6 +41,8 @@ export interface ChampionPick {
 }
 
 export interface SessionPlayer {
+  // Riferimento al giocatore del roster; opzionale perché assente nelle sessioni vecchie
+  playerId?: string;
   name: string;
   role: Role;
   champions: ChampionPick[];

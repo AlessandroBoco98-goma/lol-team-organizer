@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ROLE_LABELS, type Session } from '../types';
+import { ROLE_LABELS, type Player, type Session, type SessionPlayer } from '../types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -29,6 +29,20 @@ export function todayISO(): string {
 
 export function isPastSession(s: Pick<Session, 'date' | 'time'>): boolean {
   return new Date(`${s.date}T${s.time}:00`) < new Date();
+}
+
+// Giocatore del roster corrispondente a un giocatore di sessione: per id, altrimenti (sessioni vecchie) per nome
+export function findTeamPlayer(sp: Pick<SessionPlayer, 'name' | 'playerId'>, team: Player[]): Player | undefined {
+  return (sp.playerId ? team.find((p) => p.id === sp.playerId) : undefined) ?? team.find((p) => p.name === sp.name);
+}
+
+// Aggiorna nome, Riot ID e regione di un giocatore di sessione con i dati attuali del roster.
+// Se il giocatore non è più nel roster restano i dati salvati nella sessione.
+export function resolveSessionPlayer(sp: SessionPlayer, team: Player[]): SessionPlayer {
+  const t = findTeamPlayer(sp, team);
+  if (!t) return sp;
+  const { riotId: _riotId, region: _region, ...rest } = sp;
+  return { ...rest, playerId: t.id, name: t.name, ...(t.riotId && t.region ? { riotId: t.riotId, region: t.region } : {}) };
 }
 
 // URL del profilo op.gg per un Riot ID "Nome#TAG"; null se mancano dati o il formato non è valido

@@ -1,0 +1,57 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { parseRiotFields, validateSession, sessionFields } = require('./validation');
+
+const champ = { id: 'Ahri', name: 'Ahri' };
+const basePlayer = { name: 'Faker', role: 'MID', champions: [champ] };
+const baseSession = (players) => ({ date: '2026-12-01', time: '20:00', players });
+
+test('parseRiotFields: campi assenti o vuoti sono ammessi', () => {
+  assert.deepEqual(parseRiotFields({}), {});
+  assert.deepEqual(parseRiotFields({ riotId: '  ', region: '' }), {});
+  assert.deepEqual(parseRiotFields(undefined), {});
+});
+
+test('parseRiotFields: normalizza spazi e maiuscole della regione', () => {
+  assert.deepEqual(parseRiotFields({ riotId: ' Faker#KR1 ', region: 'kr' }), { riotId: 'Faker#KR1', region: 'KR' });
+});
+
+test('parseRiotFields: riotId e regione vanno indicati insieme', () => {
+  assert.ok(parseRiotFields({ riotId: 'Faker#KR1' }).error);
+  assert.ok(parseRiotFields({ region: 'KR' }).error);
+});
+
+test('parseRiotFields: rifiuta formati e regioni non validi', () => {
+  for (const riotId of ['Faker', 'Faker#', '#KR1', 'Fa#KR1', 'Faker#KR', 'Faker#KR1234', 'Fa#ker#KR1', 'Faker#KR-1']) {
+    assert.ok(parseRiotFields({ riotId, region: 'KR' }).error, `dovrebbe rifiutare ${riotId}`);
+  }
+  assert.ok(parseRiotFields({ riotId: 'Faker#KR1', region: 'XX' }).error);
+});
+
+test('validateSession: una sessione vecchia senza campi nuovi resta valida', () => {
+  assert.equal(validateSession(baseSession([basePlayer])), null);
+});
+
+test('validateSession: accetta playerId, riotId e regione', () => {
+  const p = { ...basePlayer, playerId: 'abc', riotId: 'Faker#KR1', region: 'KR' };
+  assert.equal(validateSession(baseSession([p])), null);
+});
+
+test('validateSession: rifiuta Riot ID non valido, ruoli duplicati e troppi campioni', () => {
+  assert.ok(validateSession(baseSession([{ ...basePlayer, riotId: 'Faker', region: 'KR' }])));
+  assert.equal(validateSession(baseSession([basePlayer, { ...basePlayer, name: 'Altro' }])), 'Ruoli duplicati');
+  assert.ok(validateSession(baseSession([{ ...basePlayer, champions: [champ, champ, champ, champ] }])));
+});
+
+test('sessionFields: salva i campi opzionali solo se presenti', () => {
+  const [old] = sessionFields(baseSession([basePlayer])).players;
+  assert.deepEqual(Object.keys(old).sort(), ['champions', 'name', 'role']);
+
+  const [full] = sessionFields(
+    baseSession([{ ...basePlayer, playerId: 'abc', riotId: 'Faker#KR1', region: 'kr', extra: 'ignorato' }]),
+  ).players;
+  assert.equal(full.playerId, 'abc');
+  assert.equal(full.riotId, 'Faker#KR1');
+  assert.equal(full.region, 'KR');
+  assert.equal('extra' in full, false);
+});
