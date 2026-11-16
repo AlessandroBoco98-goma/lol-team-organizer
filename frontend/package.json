@@ -7,7 +7,7 @@
     "dev": "vite",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.app.json --noEmit && vite build",
+    "build": "tsc -p tsconfig.app.json --noEmit && vitest run && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
