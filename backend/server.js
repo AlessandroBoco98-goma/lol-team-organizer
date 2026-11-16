@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const { FieldValue } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 
 const app = express();
@@ -47,6 +48,21 @@ const DDragon = {
 const sessionsRef = db.collection('sessions');
 const playersRef = db.collection('players');
 
+// Riot ID "Nome#TAG" e regioni supportate (usati solo per costruire il link op.gg)
+const RIOT_ID_REGEX = /^[^#]{3,16}#[A-Za-z0-9]{3,5}$/;
+const REGIONS = ['EUW', 'EUNE', 'NA', 'KR', 'BR', 'LAN', 'LAS', 'OCE', 'TR', 'RU', 'JP'];
+
+// Normalizza i campi opzionali riotId/region; ritorna { error } oppure { riotId, region } (entrambi opzionali)
+function parseRiotFields(source) {
+  const riotId = typeof source?.riotId === 'string' ? source.riotId.trim() : '';
+  const region = typeof source?.region === 'string' ? source.region.trim().toUpperCase() : '';
+  if (!riotId && !region) return {};
+  if (!riotId || !region) return { error: 'Riot ID e regione vanno indicati insieme' };
+  if (!RIOT_ID_REGEX.test(riotId)) return { error: 'Riot ID non valido (formato Nome#TAG)' };
+  if (!REGIONS.includes(region)) return { error: 'Regione non valida' };
+  return { riotId, region };
+}
+
 // Validazione e normalizzazione di una sessione
 function validateSession(body) {
   const { date, time, players } = body;
@@ -61,6 +77,8 @@ function validateSession(body) {
     if (p.champions.some((c) => typeof c?.id !== 'string' || typeof c?.name !== 'string')) {
       return 'Campione non valido';
     }
+    const riot = parseRiotFields(p);
+    if (riot.error) return riot.error;
   }
   return null;
 }
@@ -74,6 +92,7 @@ function sessionFields(body) {
       name: p.name,
       role: p.role,
       champions: p.champions.map((c) => ({ id: c.id, name: c.name })),
+      ...parseRiotFields(p),
     })),
     notes: notes || '',
   };
@@ -128,15 +147,26 @@ app.get('/api/players', async (req, res) => {
 app.post('/api/players', async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
-  const docRef = await playersRef.add({ name: name.trim(), createdAt: new Date().toISOString() });
-  res.status(201).json({ id: docRef.id, name });
+  const riot = parseRiotFields(req.body);
+  if (riot.error) return res.status(400).json({ error: riot.error });
+  const data = { name: name.trim(), ...riot, createdAt: new Date().toISOString() };
+  const docRef = await playersRef.add(data);
+  res.status(201).json({ id: docRef.id, ...data });
 });
 
 app.put('/api/players/:id', async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
-  await playersRef.doc(req.params.id).update({ name: name.trim() });
-  res.json({ id: req.params.id, name });
+  const riot = parseRiotFields(req.body);
+  if (riot.error) return res.status(400).json({ error: riot.error });
+  // Se riotId/region non sono forniti, i campi esistenti vengono rimossi
+  const data = {
+    name: name.trim(),
+    riotId: riot.riotId ?? FieldValue.delete(),
+    region: riot.region ?? FieldValue.delete(),
+  };
+  await playersRef.doc(req.params.id).update(data);
+  res.json({ id: req.params.id, name: data.name, ...riot });
 });
 
 app.delete('/api/players/:id', async (req, res) => {

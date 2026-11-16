@@ -20,9 +20,18 @@ export const ROLE_COLORS: Record<Role, string> = {
 
 export const MAX_CHAMPIONS = 3;
 
+export const REGIONS = ['EUW', 'EUNE', 'NA', 'KR', 'BR', 'LAN', 'LAS', 'OCE', 'TR', 'RU', 'JP'] as const;
+
+export type Region = (typeof REGIONS)[number];
+
+// Formato "Nome#TAG": nome 3-16 caratteri senza #, tag 3-5 caratteri alfanumerici
+export const RIOT_ID_REGEX = /^[^#]{3,16}#[A-Za-z0-9]{3,5}$/;
+
 export interface Player {
   id: string;
   name: string;
+  riotId?: string;
+  region?: Region;
   createdAt: string;
 }
 
@@ -35,6 +44,8 @@ export interface SessionPlayer {
   name: string;
   role: Role;
   champions: ChampionPick[];
+  riotId?: string;
+  region?: Region;
 }
 
 export interface Session {

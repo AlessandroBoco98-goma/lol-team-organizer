@@ -31,6 +31,14 @@ export function isPastSession(s: Pick<Session, 'date' | 'time'>): boolean {
   return new Date(`${s.date}T${s.time}:00`) < new Date();
 }
 
+// URL del profilo op.gg per un Riot ID "Nome#TAG"; null se mancano dati o il formato non è valido
+export function opggUrl(riotId?: string, region?: string): string | null {
+  if (!riotId || !region) return null;
+  const [name, tag, ...rest] = riotId.split('#');
+  if (!name || !tag || rest.length > 0) return null;
+  return `https://www.op.gg/summoners/${encodeURIComponent(region.toLowerCase())}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
+}
+
 // Link che apre Google Calendar con l'evento precompilato (durata 2 ore)
 export function googleCalendarUrl(session: Session): string {
   const start = new Date(`${session.date}T${session.time}:00`);

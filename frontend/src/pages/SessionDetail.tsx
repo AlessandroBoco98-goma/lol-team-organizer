@@ -6,6 +6,7 @@ import { championIcon } from "../lib/ddragon";
 import { formatDate, formatTime, isPastSession, googleCalendarUrl } from "../lib/utils";
 import { btnPrimary, btnGhost, btnDanger, panel, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
+import OpggButton from "../components/OpggButton";
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -63,7 +64,10 @@ export default function SessionDetail() {
               className="rounded-md border border-lol-gold-dark bg-lol-panel/80 p-5"
               style={{ borderTop: `4px solid ${ROLE_COLORS[p.role]}` }}
             >
-              <p className="font-display text-lg font-bold">{p.name}</p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-display text-lg font-bold">{p.name}</p>
+                <OpggButton riotId={p.riotId} region={p.region} />
+              </div>
               <p
                 className="mb-4 font-display text-xs uppercase tracking-widest"
                 style={{ color: ROLE_COLORS[p.role] }}

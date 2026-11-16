@@ -7,6 +7,7 @@ import { todayISO } from "../lib/utils";
 import { championIcon } from "../lib/ddragon";
 import { btnPrimary, btnGhost, panel, input, label, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
+import OpggButton from "../components/OpggButton";
 
 // Primo ruolo ancora libero, per il nuovo giocatore
 function nextFreeRole(players: SessionPlayer[]): Role {
@@ -63,6 +64,17 @@ export default function SessionForm() {
   const addPlayer = () => {
     if (players.length >= ROLES.length) return;
     setPlayers([...players, { name: "", role: nextFreeRole(players), champions: [] }]);
+  };
+
+  // Scegliendo un giocatore del team si copiano anche Riot ID e regione (se presenti)
+  const selectTeamPlayer = (index: number, name: string) => {
+    const team = teamPlayers.find((p) => p.name === name);
+    const { riotId: _r, region: _g, ...rest } = players[index];
+    setPlayers(
+      players.map((p, i) =>
+        i === index ? { ...rest, name, ...(team?.riotId && team.region ? { riotId: team.riotId, region: team.region } : {}) } : p,
+      ),
+    );
   };
 
   const removePlayer = (index: number) => setPlayers(players.filter((_, i) => i !== index));
@@ -147,8 +159,11 @@ export default function SessionForm() {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <label className={label}>Giocatore</label>
-                    <select value={player.name} onChange={(e) => patchPlayer(index, { name: e.target.value })} className={input}>
+                    <div className="flex items-center justify-between">
+                      <label className={label}>Giocatore</label>
+                      <OpggButton riotId={player.riotId} region={player.region} />
+                    </div>
+                    <select value={player.name} onChange={(e) => selectTeamPlayer(index, e.target.value)} className={input}>
                       <option value="">Seleziona...</option>
                       {teamPlayers.map((p) => (
                         <option key={p.id} value={p.name}>{p.name}</option>

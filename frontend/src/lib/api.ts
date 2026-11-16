@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, Champion, Player } from '../types';
+import type { Session, SessionPlayer, Champion, Player, Region } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -34,6 +34,7 @@ function normalizeSession(raw: any): Session {
     players: (raw.players ?? []).map((p: any) => ({
       name: p.name,
       role: p.role,
+      ...(p.riotId && p.region ? { riotId: p.riotId, region: p.region } : {}),
       champions: Array.isArray(p.champions)
         ? p.champions
         : p.champion
@@ -76,12 +77,14 @@ export const getPlayers = async (): Promise<Player[]> => {
   return response.data;
 };
 
-export const createPlayer = async (playerData: { name: string }): Promise<Player> => {
+type PlayerInput = { name: string; riotId?: string; region?: Region };
+
+export const createPlayer = async (playerData: PlayerInput): Promise<Player> => {
   const response = await api.post('/api/players', playerData);
   return response.data;
 };
 
-export const updatePlayer = async (id: string, playerData: { name: string }): Promise<Player> => {
+export const updatePlayer = async (id: string, playerData: PlayerInput): Promise<Player> => {
   const response = await api.put(`/api/players/${id}`, playerData);
   return response.data;
 };
