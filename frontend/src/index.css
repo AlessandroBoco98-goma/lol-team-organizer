@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Cinzel", serif;
+  --color-lol-bg: #010a13;
+  --color-lol-panel: #091428;
+  --color-lol-gold: #c8aa6e;
+  --color-lol-gold-dark: #785a28;
+  --color-lol-text: #f0e6d2;
+  --color-lol-teal: #0ac8b9;
+}
+
+body {
+  background: radial-gradient(ellipse at top, #0a1428 0%, #010a13 60%) fixed;
+  color: #f0e6d2;
+  min-height: 100vh;
+}
