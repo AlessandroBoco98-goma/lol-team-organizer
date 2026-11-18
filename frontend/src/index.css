@@ -2,16 +2,185 @@
 
 @theme {
   --font-display: "Cinzel", serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --color-lol-bg: #010a13;
   --color-lol-panel: #091428;
   --color-lol-gold: #c8aa6e;
   --color-lol-gold-dark: #785a28;
   --color-lol-text: #f0e6d2;
   --color-lol-teal: #0ac8b9;
+  --color-lol-blue: #3a9bdc;
+
+  --animate-fade-up: fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2.4s ease-in-out infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.92); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(10 200 185 / 0.45); }
+    50% { box-shadow: 0 0 0 7px rgb(10 200 185 / 0); }
+  }
+  @keyframes shimmer {
+    from { background-position: -200% 0; }
+    to { background-position: 200% 0; }
+  }
 }
 
-body {
-  background: radial-gradient(ellipse at top, #0a1428 0%, #010a13 60%) fixed;
-  color: #f0e6d2;
-  min-height: 100vh;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    position: relative;
+    min-height: 100vh;
+    background-color: #010a13;
+    color: #f0e6d2;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Aurora: bagliori oro, teal e blu che si spostano lentamente dietro ai contenuti */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -10%;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(600px 420px at 12% 8%, rgb(10 200 185 / 0.11), transparent 65%),
+      radial-gradient(720px 520px at 88% 0%, rgb(200 170 110 / 0.13), transparent 65%),
+      radial-gradient(820px 620px at 50% 110%, rgb(58 155 220 / 0.12), transparent 65%);
+    animation: aurora 22s ease-in-out infinite alternate;
+  }
+
+  /* Reticolo puntinato molto leggero */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(rgb(240 230 210 / 0.05) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: linear-gradient(to bottom, black, transparent 80%);
+  }
+
+  ::selection {
+    background: rgb(200 170 110 / 0.35);
+  }
+
+  /* Scrollbar in tema */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #785a28 #010a13;
+  }
+
+  :focus-visible {
+    outline: 2px solid #c8aa6e;
+    outline-offset: 2px;
+  }
+
+  select option {
+    background: #091428;
+    color: #f0e6d2;
+  }
+}
+
+@layer components {
+  /* Superficie "vetro" con bordo oro e riflesso interno */
+  .glass {
+    background: linear-gradient(160deg, rgb(18 34 62 / 0.72), rgb(9 20 40 / 0.78));
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border: 1px solid rgb(200 170 110 / 0.22);
+    box-shadow:
+      0 12px 32px -14px rgb(0 0 0 / 0.75),
+      inset 0 1px 0 rgb(240 230 210 / 0.07);
+  }
+
+  .glass-hover {
+    transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s, border-color 0.28s;
+  }
+  .glass-hover:hover {
+    transform: translateY(-4px);
+    border-color: rgb(200 170 110 / 0.55);
+    box-shadow:
+      0 22px 44px -16px rgb(0 0 0 / 0.85),
+      0 0 30px -8px rgb(200 170 110 / 0.28),
+      inset 0 1px 0 rgb(240 230 210 / 0.1);
+  }
+
+  .text-gold-gradient {
+    background: linear-gradient(180deg, #f6edd8 0%, #c8aa6e 55%, #a07a35 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Riflesso che attraversa il pulsante all'hover */
+  .btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-shine::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.4) 50%, transparent 70%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+    pointer-events: none;
+  }
+  .btn-shine:hover::after {
+    transform: translateX(120%);
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, rgb(255 255 255 / 0.04) 25%, rgb(255 255 255 / 0.09) 50%, rgb(255 255 255 / 0.04) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  /* Filetto decorativo sotto i titoli */
+  .title-rule {
+    height: 2px;
+    width: 72px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #c8aa6e, transparent);
+  }
+}
+
+@keyframes aurora {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to { transform: translate3d(2%, 2%, 0) scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

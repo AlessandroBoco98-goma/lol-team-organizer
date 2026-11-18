@@ -5,7 +5,8 @@ import { REGIONS, RIOT_ID_REGEX, type Player, type Region } from "../types";
 import { normalizePhone } from "../lib/utils";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
-import { btnPrimary, btnGhost, panel, input, label, pageTitle } from "../lib/styles";
+import { MessageCircle, Pencil, Trash2, Users } from "lucide-react";
+import { btnPrimary, btnGhost, panel, input, label, pageTitle, sectionTitle } from "../lib/styles";
 
 interface PlayerDraft {
   name: string;
@@ -160,7 +161,8 @@ export default function Players() {
     <div className="space-y-8">
       <div>
         <h1 className={pageTitle}>Giocatori</h1>
-        <p className="mt-1 text-lol-text/60">I membri del tuo team</p>
+        <div className="title-rule mt-3" />
+        <p className="mt-3 text-lol-text/60">I membri del tuo team</p>
       </div>
 
       <form onSubmit={handleCreate} className={`${panel} space-y-4`}>
@@ -182,38 +184,65 @@ export default function Players() {
         </div>
       </form>
 
-      <section className={`${panel} space-y-3`}>
-        <h2 className="font-display uppercase tracking-widest text-lol-gold">Roster ({players.length})</h2>
-        {players.length === 0 && <p className="py-6 text-center text-lol-text/50">Nessun giocatore registrato</p>}
-        {players.map((player) => (
-          <div
-            key={player.id}
-            className="flex items-center justify-between rounded-sm border border-lol-gold-dark/50 bg-[#010a13]/60 px-4 py-3"
-          >
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="font-medium">{player.name}</span>
-              {player.riotId && player.region && (
-                <span className="text-xs text-lol-text/50">{player.riotId} · {player.region}</span>
-              )}
-              <OpggButton riotId={player.riotId} region={player.region} />
-              {(player.phone || player.hasPhone) && <span className="text-xs text-lol-teal/80">WhatsApp ✓</span>}
+      <section className="space-y-4">
+        <h2 className={sectionTitle}>
+          <Users size={20} aria-hidden /> Roster
+          <span className="rounded-full bg-white/10 px-2.5 py-0.5 font-sans text-xs text-lol-text/70">{players.length}</span>
+        </h2>
+        {players.length === 0 && (
+          <div className="glass rounded-xl p-10 text-center text-lol-text/50">Nessun giocatore registrato</div>
+        )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {players.map((player, idx) => (
+            <div
+              key={player.id}
+              style={{ animationDelay: `${Math.min(idx, 8) * 60}ms` }}
+              className="glass glass-hover animate-fade-up flex flex-col gap-4 rounded-xl p-5"
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-lol-gold/50 bg-linear-to-br from-[#1b2f55] to-[#0a323c] font-display text-lg font-bold text-lol-gold shadow-[0_0_18px_-6px_rgb(200_170_110/0.7)]">
+                  {player.name.trim().charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-lg font-medium">{player.name}</p>
+                  {player.riotId && player.region ? (
+                    <p className="truncate text-xs text-lol-text/50">{player.riotId} · {player.region}</p>
+                  ) : (
+                    <p className="text-xs text-lol-text/30">Riot ID non impostato</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <OpggButton riotId={player.riotId} region={player.region} />
+                {(player.phone || player.hasPhone) && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-lol-teal/40 bg-lol-teal/10 px-2.5 py-0.5 text-[11px] text-lol-teal">
+                    <MessageCircle size={11} aria-hidden /> WhatsApp
+                  </span>
+                )}
+              </div>
+              <div className="mt-auto flex items-center gap-4 border-t border-lol-gold/15 pt-3 text-sm">
+                <button
+                  onClick={() => openEdit(player)}
+                  className="flex items-center gap-1.5 text-lol-gold transition hover:text-lol-text"
+                >
+                  <Pencil size={14} aria-hidden /> Modifica
+                </button>
+                <button
+                  onClick={() => confirm("Eliminare questo giocatore?") && deleteMutation.mutate(player.id)}
+                  className="ml-auto flex items-center gap-1.5 text-red-400/80 transition hover:text-red-400"
+                  aria-label={`Elimina ${player.name}`}
+                >
+                  <Trash2 size={15} aria-hidden />
+                </button>
+              </div>
             </div>
-            <div className="flex gap-4 text-sm">
-              <button onClick={() => openEdit(player)} className="text-lol-gold hover:underline">Modifica</button>
-              <button
-                onClick={() => confirm("Eliminare questo giocatore?") && deleteMutation.mutate(player.id)}
-                className="text-red-400 hover:underline"
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </section>
 
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-          <div className={`${panel} max-h-full w-full max-w-2xl space-y-4 overflow-y-auto`}>
+        <div className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className={`${panel} animate-pop max-h-full w-full max-w-2xl space-y-4 overflow-y-auto`}>
             <h3 className="font-display text-lg uppercase tracking-widest text-lol-gold">Modifica giocatore</h3>
             <div>
               <label className={label}>Nome</label>

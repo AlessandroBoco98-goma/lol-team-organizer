@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getSession, createSession, updateSession, getChampions, getPlayers } from "../lib/api";
-import { ROLES, ROLE_LABELS, MAX_CHAMPIONS, type Role, type SessionPlayer, type Champion } from "../types";
+import { ArrowLeft, Plus, Trash2, Users } from "lucide-react";
+import { ROLES, ROLE_COLORS, ROLE_LABELS, MAX_CHAMPIONS, type Role, type SessionPlayer, type Champion } from "../types";
 import { todayISO, findTeamPlayer, resolveSessionPlayer, nextFreeRole } from "../lib/utils";
 import { championIcon } from "../lib/ddragon";
-import { btnPrimary, btnGhost, panel, input, label, pageTitle } from "../lib/styles";
+import { btnPrimary, btnGhost, panel, input, label, pageTitle, sectionTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
 
@@ -106,10 +107,16 @@ export default function SessionForm() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className={pageTitle}>{id ? "Modifica sessione" : "Nuova sessione"}</h1>
-        <button onClick={() => navigate("/")} className="text-sm text-lol-text/60 hover:text-lol-gold">
-          ← Torna al calendario
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className={pageTitle}>{id ? "Modifica sessione" : "Nuova sessione"}</h1>
+          <div className="title-rule mt-3" />
+        </div>
+        <button
+          onClick={() => navigate("/")}
+          className="group flex items-center gap-2 text-sm text-lol-text/60 transition hover:text-lol-gold"
+        >
+          <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" aria-hidden /> Torna al calendario
         </button>
       </div>
 
@@ -127,9 +134,13 @@ export default function SessionForm() {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Composizione</h2>
+            <h2 className={sectionTitle}>
+              <Users size={20} aria-hidden /> Composizione
+            </h2>
             {players.length < ROLES.length && (
-              <button type="button" onClick={addPlayer} className={btnGhost}>+ Giocatore</button>
+              <button type="button" onClick={addPlayer} className={btnGhost}>
+                <Plus size={16} aria-hidden /> Giocatore
+              </button>
             )}
           </div>
 
@@ -146,11 +157,19 @@ export default function SessionForm() {
             const inRoster = !!findTeamPlayer(player, teamPlayers);
             const available = sortedChampions.filter((c) => !player.champions.some((p) => p.id === c.id));
             return (
-              <div key={index} className={`${panel} space-y-4`}>
+              <div
+                key={index}
+                className={`${panel} animate-pop space-y-4 border-l-4`}
+                style={{ borderLeftColor: ROLE_COLORS[player.role] }}
+              >
                 <div className="flex items-center justify-between">
                   <h3 className="font-display uppercase tracking-widest text-lol-gold">Giocatore {index + 1}</h3>
-                  <button type="button" onClick={() => removePlayer(index)} className="text-sm text-red-400 hover:underline">
-                    Rimuovi
+                  <button
+                    type="button"
+                    onClick={() => removePlayer(index)}
+                    className="flex items-center gap-1.5 text-sm text-red-400/80 transition hover:text-red-400"
+                  >
+                    <Trash2 size={14} aria-hidden /> Rimuovi
                   </button>
                 </div>
 
@@ -195,9 +214,9 @@ export default function SessionForm() {
                     {player.champions.map((c) => (
                       <span
                         key={c.id}
-                        className="flex items-center gap-2 rounded-sm border border-lol-gold-dark bg-[#010a13] py-1 pl-1 pr-2 text-sm"
+                        className="animate-pop flex items-center gap-2 rounded-full border border-lol-gold/30 bg-[#010a13]/70 py-1 pl-1 pr-3 text-sm transition hover:border-lol-gold/60"
                       >
-                        <img src={championIcon(c.id)} alt="" className="h-6 w-6 rounded-full" />
+                        <img src={championIcon(c.id)} alt="" className="h-6 w-6 rounded-full ring-1 ring-lol-gold/40" />
                         {c.name}
                         <button
                           type="button"

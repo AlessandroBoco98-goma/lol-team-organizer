@@ -27,6 +27,32 @@ export function todayISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Giorno, mese e giorno della settimana abbreviati per il badge data delle card
+export function dateBadge(dateString: string): { day: string; month: string; weekday: string } {
+  const d = new Date(`${dateString}T12:00:00`);
+  return {
+    day: String(d.getDate()),
+    month: d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', ''),
+    weekday: d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', ''),
+  };
+}
+
+// Tempo che manca alla sessione ("tra 2 ore", "Domani", "tra 5 giorni") o il suo stato se è già iniziata.
+// La durata considerata per "In corso" è di 2 ore, come nell'evento di Google Calendar.
+export function countdownLabel(s: Pick<Session, 'date' | 'time'>, now: Date = new Date()): string {
+  const start = new Date(`${s.date}T${s.time}:00`);
+  const diff = start.getTime() - now.getTime();
+  if (diff <= 0) return now.getTime() < start.getTime() + 2 * 60 * 60 * 1000 ? 'In corso' : 'Conclusa';
+  const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const dayDiff = Math.round((dayStart(start) - dayStart(now)) / 86_400_000);
+  if (dayDiff >= 2) return `tra ${dayDiff} giorni`;
+  if (dayDiff === 1) return 'Domani';
+  const minutes = Math.ceil(diff / 60_000);
+  if (minutes < 60) return `tra ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours === 1 ? 'tra 1 ora' : `tra ${hours} ore`;
+}
+
 export function isPastSession(s: Pick<Session, 'date' | 'time'>): boolean {
   return new Date(`${s.date}T${s.time}:00`) < new Date();
 }

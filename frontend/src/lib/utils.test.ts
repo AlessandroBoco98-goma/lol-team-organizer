@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  countdownLabel,
+  dateBadge,
   findTeamPlayer,
   normalizePhone,
   opggUrl,
@@ -104,6 +106,31 @@ describe('playersFromRsvp', () => {
     expect(playersFromRsvp({ players: [], rsvp }, big)).toBeNull();
     const five = Object.fromEntries(big.slice(0, 5).map((p) => [p.id, 'yes' as const]));
     expect(playersFromRsvp({ players: [], rsvp: five }, big)).toHaveLength(5);
+  });
+});
+
+describe('countdownLabel / dateBadge', () => {
+  const now = new Date('2026-11-18T12:00:00');
+
+  it('mostra minuti, ore, domani e giorni', () => {
+    expect(countdownLabel({ date: '2026-11-18', time: '12:30' }, now)).toBe('tra 30 min');
+    expect(countdownLabel({ date: '2026-11-18', time: '13:00' }, now)).toBe('tra 1 ora');
+    expect(countdownLabel({ date: '2026-11-18', time: '21:30' }, now)).toBe('tra 9 ore');
+    expect(countdownLabel({ date: '2026-11-19', time: '09:00' }, now)).toBe('Domani');
+    expect(countdownLabel({ date: '2026-11-23', time: '20:00' }, now)).toBe('tra 5 giorni');
+  });
+
+  it('distingue sessione in corso e conclusa', () => {
+    expect(countdownLabel({ date: '2026-11-18', time: '11:00' }, now)).toBe('In corso');
+    expect(countdownLabel({ date: '2026-11-18', time: '09:00' }, now)).toBe('Conclusa');
+    expect(countdownLabel({ date: '2026-11-16', time: '21:30' }, now)).toBe('Conclusa');
+  });
+
+  it('ricava giorno e mese per il badge', () => {
+    const b = dateBadge('2026-11-18');
+    expect(b.day).toBe('18');
+    expect(b.month.startsWith('nov')).toBe(true);
+    expect(b.weekday.startsWith('mer')).toBe(true);
   });
 });
 

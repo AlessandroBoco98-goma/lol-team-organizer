@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { setRsvp } from "../lib/api";
+import { CalendarCheck, Check, Clock, MessageCircle, X } from "lucide-react";
 import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type RsvpStatus, type Session } from "../types";
 import { rsvpCounts, sessionInviteText, whatsappChatUrl } from "../lib/utils";
-import { label, input, panel } from "../lib/styles";
+import { label, input, panel, sectionTitle } from "../lib/styles";
 
 const ME_KEY = "lol-team-me";
 
@@ -46,17 +47,17 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
     }
   };
 
-  if (teamPlayers.length === 0) return null;
+  // Per le sessioni passate il riepilogo sta già nell'intestazione e non si può più rispondere
+  if (teamPlayers.length === 0 || past) return null;
 
   return (
-    <section className={`${panel} space-y-4`}>
+    <section className={`${panel} space-y-5`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Disponibilità</h2>
-        <p className="flex flex-wrap gap-3 text-sm">
-          {RSVP_STATUSES.map((s) => (
-            <span key={s} style={{ color: RSVP_COLORS[s] }}>{counts[s]} {RSVP_LABELS[s].toLowerCase()}</span>
-          ))}
-          <span className="text-lol-text/60">{counts.pending} in attesa</span>
+        <h2 className={sectionTitle}>
+          <CalendarCheck size={20} aria-hidden /> Disponibilità
+        </h2>
+        <p className="text-sm text-lol-text/60">
+          <span className="font-medium text-lol-teal">{counts.yes}</span> su {teamPlayers.length} hanno confermato
         </p>
       </div>
 
@@ -80,14 +81,16 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
                   type="button"
                   disabled={!meCandidate || mutation.isPending}
                   onClick={() => meCandidate && mutation.mutate({ playerId: meCandidate.id, status: active ? null : s })}
-                  className="rounded-sm border px-4 py-2 font-display text-xs uppercase tracking-widest transition disabled:opacity-40"
+                  className="inline-flex items-center gap-2 rounded-md border px-4 py-2.5 font-display text-xs uppercase tracking-widest transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40"
                   style={{
                     color: active ? "#010a13" : RSVP_COLORS[s],
-                    backgroundColor: active ? RSVP_COLORS[s] : "transparent",
+                    backgroundColor: active ? RSVP_COLORS[s] : `${RSVP_COLORS[s]}10`,
                     borderColor: RSVP_COLORS[s],
+                    boxShadow: active ? `0 8px 22px -8px ${RSVP_COLORS[s]}` : undefined,
                   }}
                   aria-pressed={active}
                 >
+                  {s === "yes" ? <Check size={15} aria-hidden /> : s === "no" ? <X size={15} aria-hidden /> : <Clock size={15} aria-hidden />}
                   {RSVP_LABELS[s]}
                 </button>
               );
@@ -98,8 +101,8 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
       {!past && <p className="text-xs text-lol-text/50">Clicca di nuovo sulla tua risposta per annullarla.</p>}
 
       {!past && pending.length > 0 && (
-        <div className="space-y-2 border-t border-lol-gold-dark/40 pt-4">
-          <p className="text-sm text-lol-text/70">Non hanno ancora risposto:</p>
+        <div className="space-y-2 border-t border-lol-gold/15 pt-4">
+          <p className="text-sm text-lol-text/70">Non hanno ancora risposto (tocca per sollecitare su WhatsApp):</p>
           <ul className="flex flex-wrap gap-2">
             {pending.map((p) => (
               <li key={p.id}>
@@ -109,12 +112,12 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
                     target="_blank"
                     rel="noreferrer"
                     title={`Manda un promemoria a ${p.name} su WhatsApp`}
-                    className="rounded-sm border border-lol-teal/50 px-3 py-1 text-sm text-lol-teal hover:bg-lol-teal/10"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-lol-teal/50 bg-lol-teal/5 px-3 py-1 text-sm text-lol-teal transition hover:-translate-y-0.5 hover:bg-lol-teal/15"
                   >
-                    {p.name} · Sollecita
+                    <MessageCircle size={13} aria-hidden /> {p.name}
                   </a>
                 ) : (
-                  <span className="rounded-sm border border-lol-text/20 px-3 py-1 text-sm text-lol-text/60">{p.name}</span>
+                  <span className="rounded-full border border-lol-text/20 px-3 py-1 text-sm text-lol-text/60">{p.name}</span>
                 )}
               </li>
             ))}

@@ -13,7 +13,8 @@ import {
   type Session,
   type SessionPlayer,
 } from "../types";
-import { btnPrimary, input, label, panel } from "../lib/styles";
+import { Ban } from "lucide-react";
+import { btnPrimary, input, label, panel, sectionTitle } from "../lib/styles";
 
 const EMPTY_DRAFT: Draft = { allyBans: [], enemyBans: [], enemyPicks: [], notes: "" };
 
@@ -47,9 +48,9 @@ function ChampionListEditor({
         {items.map((c) => (
           <span
             key={c.id}
-            className="flex items-center gap-2 rounded-sm border border-lol-gold-dark bg-[#010a13] py-1 pl-1 pr-2 text-sm"
+            className="animate-pop flex items-center gap-2 rounded-full border border-lol-gold/30 bg-[#010a13]/70 py-1 pl-1 pr-3 text-sm transition hover:border-lol-gold/60"
           >
-            <img src={championIcon(c.id)} alt="" className="h-6 w-6 rounded-full" />
+            <img src={championIcon(c.id)} alt="" className="h-6 w-6 rounded-full ring-1 ring-lol-gold/40" />
             {c.name}
             <button
               type="button"
@@ -111,7 +112,9 @@ export default function DraftPanel({
 
   return (
     <section className={`${panel} space-y-5`}>
-      <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Draft</h2>
+      <h2 className={sectionTitle}>
+        <Ban size={20} aria-hidden /> Draft
+      </h2>
 
       <div className="grid gap-5 md:grid-cols-3">
         <ChampionListEditor
@@ -152,7 +155,7 @@ export default function DraftPanel({
       </div>
 
       {insights.length > 0 && (
-        <div className="space-y-2 border-t border-lol-gold-dark/40 pt-4">
+        <div className="space-y-2 rounded-lg border border-lol-gold/15 bg-black/20 p-4">
           <h3 className="font-display text-sm uppercase tracking-widest text-lol-gold">Suggerimenti sulla composizione</h3>
           <ul className="space-y-1 text-sm">
             {insights.map((i, idx) => (
