@@ -34,7 +34,8 @@ function magicShare(picks: ChampionPick[], byId: Map<string, Champion>): number 
   let known = 0;
   for (const p of picks) {
     const info = byId.get(p.id)?.info;
-    if (!info) continue;
+    // Alcuni campioni (es. Akshan, Rell, Seraphine, Vex) hanno i punteggi a 0 in Data Dragon: sono dati mancanti, non "nessun danno"
+    if (!info || info.attack + info.magic === 0) continue;
     attack += info.attack;
     magic += info.magic;
     known += 1;

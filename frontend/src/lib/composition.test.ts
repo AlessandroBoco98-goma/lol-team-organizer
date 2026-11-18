@@ -106,6 +106,17 @@ describe('analyzeComposition', () => {
     expect(analyzeComposition(full, champions, d2).some((i) => i.text.includes('armatura'))).toBe(true);
   });
 
+  it('ignora i campioni con punteggi tutti a 0 (dati mancanti in Data Dragon)', () => {
+    const withZeros = [...champions, champ('Seraphine', ['Support', 'Mage'], 0, 0), champ('Vex', ['Mage'], 0, 0)];
+    // Con Seraphine e Vex ignorati restano solo 2 campioni con dati: troppo pochi per giudicare il danno
+    const p = [player('A', 'SUPPORT', ['Seraphine']), player('B', 'MID', ['Vex']), player('C', 'ADC', ['Jinx']), player('D', 'TOP', ['Garen'])];
+    expect(analyzeComposition(p, withZeros).some((i) => i.text.toLowerCase().includes('danno'))).toBe(false);
+    // Se invece ce ne sono abbastanza, la percentuale è calcolata solo su quelli con dati
+    const q = [...p, player('E', 'JUNGLE', ['Zed'])];
+    const r = analyzeComposition(q, withZeros);
+    expect(r.some((i) => i.level === 'warn' && i.text.includes('fisico'))).toBe(true);
+  });
+
   it('non fallisce se mancano tag o info', () => {
     const bare: Champion[] = [{ id: 'X', name: 'X', key: 'X', image: '' }];
     expect(() => analyzeComposition([player('A', 'TOP', ['X'])], bare, draft())).not.toThrow();
