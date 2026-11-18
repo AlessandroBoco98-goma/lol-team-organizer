@@ -108,10 +108,28 @@ export function opggUrl(riotId?: string, region?: string): string | null {
   return `https://www.op.gg/summoners/${encodeURIComponent(region.toLowerCase())}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
 }
 
+// Numero in formato internazionale senza spazi (+393331234567); '' se vuoto, null se non valido
+export function normalizePhone(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  let phone = trimmed.replace(/[\s().-]/g, '');
+  if (phone.startsWith('00')) phone = `+${phone.slice(2)}`;
+  return /^\+[1-9]\d{7,14}$/.test(phone) ? phone : null;
+}
+
+// Link che apre la chat WhatsApp con una persona, con il testo già scritto
+export function whatsappChatUrl(phone: string, text: string): string {
+  return `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
+}
+
+// Testo del messaggio con cui si invita il gruppo (o un singolo giocatore) a rispondere
+export function sessionInviteText(session: Pick<Session, 'date' | 'time' | 'id'>, origin: string): string {
+  return `🎮 Sessione LoL: ${formatDate(session.date)}, ore ${session.time}\nSegna la tua disponibilità qui: ${origin}/session/${session.id}`;
+}
+
 // Link che apre WhatsApp con il messaggio pronto da inviare al gruppo
 export function whatsappShareUrl(session: Pick<Session, 'date' | 'time' | 'id'>, origin: string): string {
-  const text = `🎮 Sessione LoL: ${formatDate(session.date)}, ore ${session.time}\nSegna la tua disponibilità qui: ${origin}/session/${session.id}`;
-  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  return `https://wa.me/?text=${encodeURIComponent(sessionInviteText(session, origin))}`;
 }
 
 // Link che apre Google Calendar con l'evento precompilato (durata 2 ore)

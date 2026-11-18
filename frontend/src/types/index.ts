@@ -32,6 +32,10 @@ export interface Player {
   name: string;
   riotId?: string;
   region?: Region;
+  // Numero internazionale (+39...): il backend lo invia solo a chi ha la password del team
+  phone?: string;
+  // true se il numero esiste ma il backend non l'ha inviato (password non ancora inserita)
+  hasPhone?: boolean;
   createdAt: string;
 }
 

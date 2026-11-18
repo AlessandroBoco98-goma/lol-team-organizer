@@ -52,6 +52,18 @@ function sessionFields(body) {
   };
 }
 
+// Numero di telefono opzionale in formato internazionale (+39 333 1234567); ritorna { error } oppure { phone } o {}
+function parsePhone(source) {
+  const raw = typeof source?.phone === 'string' ? source.phone.trim() : '';
+  if (!raw) return {};
+  let phone = raw.replace(/[\s().-]/g, '');
+  if (phone.startsWith('00')) phone = `+${phone.slice(2)}`;
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    return { error: 'Numero di telefono non valido (formato internazionale, es. +39 333 1234567)' };
+  }
+  return { phone };
+}
+
 const RSVP_STATUSES = ['yes', 'maybe', 'no'];
 
 // Valida il body di una risposta RSVP: { playerId, status } con status null/'' per annullare la risposta.
@@ -71,6 +83,7 @@ module.exports = {
   REGIONS,
   RSVP_STATUSES,
   parseRiotFields,
+  parsePhone,
   parseRsvp,
   validateSession,
   sessionFields,

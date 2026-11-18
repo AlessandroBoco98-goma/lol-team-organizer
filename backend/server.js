@@ -4,7 +4,7 @@ const cors = require('cors');
 const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
-const { parseRiotFields, parseRsvp, validateSession, sessionFields } = require('./validation');
+const { parseRiotFields, parsePhone, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -100,8 +100,18 @@ app.delete('/api/sessions/:id', async (req, res) => {
 // Players
 app.get('/api/players', async (req, res) => {
   const snapshot = await playersRef.get();
+  // I numeri di telefono sono dati personali: li vede solo chi ha la password del team
+  const authed = !!TEAM_PASSWORD && req.get('x-team-password') === TEAM_PASSWORD;
   const players = [];
-  snapshot.forEach(doc => players.push({ id: doc.id, ...doc.data() }));
+  snapshot.forEach((doc) => {
+    const { phone, ...publicData } = doc.data();
+    // Senza password si sa solo che il numero esiste (hasPhone), così il form non lo cancella per errore
+    players.push({
+      id: doc.id,
+      ...publicData,
+      ...(authed ? (phone ? { phone } : {}) : phone ? { hasPhone: true } : {}),
+    });
+  });
   res.json(players);
 });
 
@@ -110,7 +120,9 @@ app.post('/api/players', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Name required' });
   const riot = parseRiotFields(req.body);
   if (riot.error) return res.status(400).json({ error: riot.error });
-  const data = { name: name.trim(), ...riot, createdAt: new Date().toISOString() };
+  const contact = parsePhone(req.body);
+  if (contact.error) return res.status(400).json({ error: contact.error });
+  const data = { name: name.trim(), ...riot, ...contact, createdAt: new Date().toISOString() };
   const docRef = await playersRef.add(data);
   res.status(201).json({ id: docRef.id, ...data });
 });
@@ -120,14 +132,18 @@ app.put('/api/players/:id', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'Name required' });
   const riot = parseRiotFields(req.body);
   if (riot.error) return res.status(400).json({ error: riot.error });
-  // Se riotId/region non sono forniti, i campi esistenti vengono rimossi
+  const contact = parsePhone(req.body);
+  if (contact.error) return res.status(400).json({ error: contact.error });
+  // Se riotId/region/phone non sono forniti, i campi esistenti vengono rimossi
   const data = {
     name: name.trim(),
     riotId: riot.riotId ?? FieldValue.delete(),
     region: riot.region ?? FieldValue.delete(),
+    // Il numero cambia solo se il campo è presente nella richiesta
+    ...('phone' in req.body ? { phone: contact.phone ?? FieldValue.delete() } : {}),
   };
   await playersRef.doc(req.params.id).update(data);
-  res.json({ id: req.params.id, name: data.name, ...riot });
+  res.json({ id: req.params.id, name: data.name, ...riot, ...('phone' in req.body ? contact : {}) });
 });
 
 app.delete('/api/players/:id', async (req, res) => {

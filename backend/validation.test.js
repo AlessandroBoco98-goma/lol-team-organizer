@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRiotFields, parseRsvp, validateSession, sessionFields } = require('./validation');
+const { parseRiotFields, parsePhone, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const champ = { id: 'Ahri', name: 'Ahri' };
 const basePlayer = { name: 'Faker', role: 'MID', champions: [champ] };
@@ -46,6 +46,19 @@ test('validateSession: rifiuta Riot ID non valido, ruoli duplicati e troppi camp
   assert.ok(validateSession(baseSession([{ ...basePlayer, riotId: 'Faker', region: 'KR' }])));
   assert.equal(validateSession(baseSession([basePlayer, { ...basePlayer, name: 'Altro' }])), 'Ruoli duplicati');
   assert.ok(validateSession(baseSession([{ ...basePlayer, champions: [champ, champ, champ, champ] }])));
+});
+
+test('parsePhone: vuoto è ammesso, il formato internazionale viene normalizzato', () => {
+  assert.deepEqual(parsePhone({}), {});
+  assert.deepEqual(parsePhone({ phone: '  ' }), {});
+  assert.deepEqual(parsePhone({ phone: '+39 333 123-4567' }), { phone: '+393331234567' });
+  assert.deepEqual(parsePhone({ phone: '0039 333 1234567' }), { phone: '+393331234567' });
+});
+
+test('parsePhone: rifiuta numeri senza prefisso internazionale o malformati', () => {
+  for (const phone of ['3331234567', '+39', '+0393331234567', '+39abc1234567', '+39 333 12345678901234567']) {
+    assert.ok(parsePhone({ phone }).error, `dovrebbe rifiutare ${phone}`);
+  }
 });
 
 test('parseRsvp: accetta gli stati validi', () => {

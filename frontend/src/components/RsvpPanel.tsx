@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { setRsvp } from "../lib/api";
 import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type RsvpStatus, type Session } from "../types";
-import { rsvpCounts } from "../lib/utils";
+import { rsvpCounts, sessionInviteText, whatsappChatUrl } from "../lib/utils";
 import { label, input, panel } from "../lib/styles";
 
 const ME_KEY = "lol-team-me";
@@ -24,6 +24,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
   // Rispondono tutti i giocatori del roster, anche se non sono ancora nella composizione
   const meCandidate = teamPlayers.find((p) => p.id === me);
   const counts = rsvpCounts(session, teamPlayers);
+  const pending = teamPlayers.filter((p) => !session.rsvp?.[p.id]);
   const current = meCandidate ? session.rsvp?.[meCandidate.id] : undefined;
 
   const mutation = useMutation({
@@ -95,6 +96,31 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
         </div>
       )}
       {!past && <p className="text-xs text-lol-text/50">Clicca di nuovo sulla tua risposta per annullarla.</p>}
+
+      {!past && pending.length > 0 && (
+        <div className="space-y-2 border-t border-lol-gold-dark/40 pt-4">
+          <p className="text-sm text-lol-text/70">Non hanno ancora risposto:</p>
+          <ul className="flex flex-wrap gap-2">
+            {pending.map((p) => (
+              <li key={p.id}>
+                {p.phone ? (
+                  <a
+                    href={whatsappChatUrl(p.phone, `Ciao ${p.name}! ${sessionInviteText(session, window.location.origin)}`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={`Manda un promemoria a ${p.name} su WhatsApp`}
+                    className="rounded-sm border border-lol-teal/50 px-3 py-1 text-sm text-lol-teal hover:bg-lol-teal/10"
+                  >
+                    {p.name} · Sollecita
+                  </a>
+                ) : (
+                  <span className="rounded-sm border border-lol-text/20 px-3 py-1 text-sm text-lol-text/60">{p.name}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   findTeamPlayer,
+  normalizePhone,
   opggUrl,
   playersFromRsvp,
   resolveSessionPlayer,
   rsvpCounts,
   rsvpOf,
+  whatsappChatUrl,
   whatsappShareUrl,
 } from './utils';
 import type { Player, SessionPlayer } from '../types';
@@ -102,6 +104,24 @@ describe('playersFromRsvp', () => {
     expect(playersFromRsvp({ players: [], rsvp }, big)).toBeNull();
     const five = Object.fromEntries(big.slice(0, 5).map((p) => [p.id, 'yes' as const]));
     expect(playersFromRsvp({ players: [], rsvp: five }, big)).toHaveLength(5);
+  });
+});
+
+describe('normalizePhone / whatsappChatUrl', () => {
+  it('normalizza il formato internazionale', () => {
+    expect(normalizePhone('+39 333 123-4567')).toBe('+393331234567');
+    expect(normalizePhone('0039 333 1234567')).toBe('+393331234567');
+    expect(normalizePhone('  ')).toBe('');
+  });
+
+  it('rifiuta numeri senza + o malformati', () => {
+    expect(normalizePhone('3331234567')).toBeNull();
+    expect(normalizePhone('+39abc')).toBeNull();
+  });
+
+  it('costruisce il link della chat con solo le cifre', () => {
+    const url = whatsappChatUrl('+393331234567', 'Ciao & grazie');
+    expect(url).toBe('https://wa.me/393331234567?text=Ciao%20%26%20grazie');
   });
 });
 

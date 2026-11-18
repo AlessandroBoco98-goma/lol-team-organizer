@@ -83,7 +83,8 @@ export const getPlayers = async (): Promise<Player[]> => {
   return response.data;
 };
 
-type PlayerInput = { name: string; riotId?: string; region?: Region };
+// phone: stringa vuota rimuove il numero, campo assente lo lascia com'è
+type PlayerInput = { name: string; riotId?: string; region?: Region; phone?: string };
 
 export const createPlayer = async (playerData: PlayerInput): Promise<Player> => {
   const response = await api.post('/api/players', playerData);
