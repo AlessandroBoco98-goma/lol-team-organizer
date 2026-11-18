@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ROLE_LABELS, type Player, type RsvpStatus, type Session, type SessionPlayer } from '../types';
+import { ROLES, ROLE_LABELS, type Player, type Role, type RsvpStatus, type Session, type SessionPlayer } from '../types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -58,16 +58,46 @@ export function rsvpOf(session: Pick<Session, 'rsvp'>, sp: SessionPlayer, team: 
   return id ? session.rsvp?.[id] : undefined;
 }
 
-// Conteggio delle risposte; i giocatori non più nel roster non possono rispondere e non sono contati
-export function rsvpCounts(session: Pick<Session, 'players' | 'rsvp'>, team: Player[]): RsvpCounts {
+// Conteggio delle risposte su tutto il roster: rispondono tutti, non solo chi è già nella composizione
+export function rsvpCounts(session: Pick<Session, 'rsvp'>, team: Player[]): RsvpCounts {
   const counts: RsvpCounts = { yes: 0, maybe: 0, no: 0, pending: 0 };
-  for (const sp of session.players) {
-    if (!resolveSessionPlayer(sp, team).playerId) continue;
-    const status = rsvpOf(session, sp, team);
+  for (const p of team) {
+    const status = session.rsvp?.[p.id];
     if (status) counts[status] += 1;
     else counts.pending += 1;
   }
   return counts;
+}
+
+// Primo ruolo ancora libero
+export function nextFreeRole(players: Pick<SessionPlayer, 'role'>[]): Role {
+  const used = players.map((p) => p.role);
+  return ROLES.find((r) => !used.includes(r)) ?? ROLES[0];
+}
+
+// Composizione costruita dai "Ci sono": chi è già in sessione e ha risposto sì resta com'è (ruolo e campioni),
+// chi non ha risposto sì esce, i nuovi arrivano con il primo ruolo libero e senza campioni.
+// Ritorna null se i "Ci sono" sono più dei ruoli disponibili.
+export function playersFromRsvp(session: Pick<Session, 'players' | 'rsvp'>, team: Player[]): SessionPlayer[] | null {
+  const yes = team.filter((p) => session.rsvp?.[p.id] === 'yes');
+  if (yes.length > ROLES.length) return null;
+  const result: SessionPlayer[] = [];
+  const keep = session.players.map((sp) => resolveSessionPlayer(sp, team));
+  for (const t of yes) {
+    const existing = keep.find((sp) => sp.playerId === t.id);
+    if (existing) result.push(existing);
+  }
+  for (const t of yes) {
+    if (result.some((sp) => sp.playerId === t.id)) continue;
+    result.push({
+      playerId: t.id,
+      name: t.name,
+      role: nextFreeRole(result),
+      champions: [],
+      ...(t.riotId && t.region ? { riotId: t.riotId, region: t.region } : {}),
+    });
+  }
+  return result;
 }
 
 // URL del profilo op.gg per un Riot ID "Nome#TAG"; null se mancano dati o il formato non è valido
@@ -76,6 +106,12 @@ export function opggUrl(riotId?: string, region?: string): string | null {
   const [name, tag, ...rest] = riotId.split('#');
   if (!name || !tag || rest.length > 0) return null;
   return `https://www.op.gg/summoners/${encodeURIComponent(region.toLowerCase())}/${encodeURIComponent(name)}-${encodeURIComponent(tag)}`;
+}
+
+// Link che apre WhatsApp con il messaggio pronto da inviare al gruppo
+export function whatsappShareUrl(session: Pick<Session, 'date' | 'time' | 'id'>, origin: string): string {
+  const text = `🎮 Sessione LoL: ${formatDate(session.date)}, ore ${session.time}\nSegna la tua disponibilità qui: ${origin}/session/${session.id}`;
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
 // Link che apre Google Calendar con l'evento precompilato (durata 2 ore)

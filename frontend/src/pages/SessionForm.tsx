@@ -3,17 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getSession, createSession, updateSession, getChampions, getPlayers } from "../lib/api";
 import { ROLES, ROLE_LABELS, MAX_CHAMPIONS, type Role, type SessionPlayer, type Champion } from "../types";
-import { todayISO, findTeamPlayer, resolveSessionPlayer } from "../lib/utils";
+import { todayISO, findTeamPlayer, resolveSessionPlayer, nextFreeRole } from "../lib/utils";
 import { championIcon } from "../lib/ddragon";
 import { btnPrimary, btnGhost, panel, input, label, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
-
-// Primo ruolo ancora libero, per il nuovo giocatore
-function nextFreeRole(players: SessionPlayer[]): Role {
-  const used = players.map((p) => p.role);
-  return ROLES.find((r) => !used.includes(r)) ?? ROLES[0];
-}
 
 export default function SessionForm() {
   const { id } = useParams();
@@ -51,9 +45,11 @@ export default function SessionForm() {
   const mutation = useMutation({
     mutationFn: (payload: { date: string; time: string; players: SessionPlayer[]; notes: string }) =>
       id ? updateSession(id, payload) : createSession(payload),
-    onSuccess: () => {
+    onSuccess: (saved, variables) => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
-      navigate("/");
+      queryClient.invalidateQueries({ queryKey: ["session", saved.id] });
+      // Senza giocatori la sessione serve a raccogliere le disponibilità: si va al dettaglio per condividerla
+      navigate(variables.players.length === 0 ? `/session/${saved.id}` : "/");
     },
     onError: () => alert("Errore nel salvataggio. Controlla la password del team."),
   });
@@ -91,14 +87,13 @@ export default function SessionForm() {
   const isValid =
     !!date &&
     !!time &&
-    players.length > 0 &&
     players.every((p) => p.name && p.champions.length >= 1) &&
     new Set(players.map((p) => p.role)).size === players.length;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) {
-      alert("Compila tutti i campi: ogni giocatore deve avere un nome, un ruolo univoco e almeno un campione.");
+      alert("Compila tutti i campi: ogni giocatore aggiunto deve avere un nome, un ruolo univoco e almeno un campione.");
       return;
     }
     // Allinea nomi e Riot ID dei giocatori ai dati attuali del roster prima di salvare
@@ -139,7 +134,10 @@ export default function SessionForm() {
           </div>
 
           {players.length === 0 && (
-            <p className="text-sm text-lol-text/50">Aggiungi i giocatori della sessione.</p>
+            <p className="text-sm text-lol-text/50">
+              Aggiungi i giocatori della sessione, oppure lascia vuoto: condividi la sessione su WhatsApp e componi
+              la squadra dai "Ci sono".
+            </p>
           )}
 
           {players.map((player, index) => {

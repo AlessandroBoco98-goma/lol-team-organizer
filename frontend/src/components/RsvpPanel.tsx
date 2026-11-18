@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { setRsvp } from "../lib/api";
 import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type RsvpStatus, type Session } from "../types";
-import { resolveSessionPlayer, rsvpCounts, rsvpOf } from "../lib/utils";
+import { rsvpCounts } from "../lib/utils";
 import { label, input, panel } from "../lib/styles";
 
 const ME_KEY = "lol-team-me";
@@ -21,12 +21,10 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
   const queryClient = useQueryClient();
   const [me, setMe] = useState(readMe);
 
-  const candidates = session.players
-    .map((sp) => resolveSessionPlayer(sp, teamPlayers))
-    .filter((p): p is typeof p & { playerId: string } => !!p.playerId);
-  const meCandidate = candidates.find((p) => p.playerId === me);
+  // Rispondono tutti i giocatori del roster, anche se non sono ancora nella composizione
+  const meCandidate = teamPlayers.find((p) => p.id === me);
   const counts = rsvpCounts(session, teamPlayers);
-  const current = meCandidate ? rsvpOf(session, meCandidate, teamPlayers) : undefined;
+  const current = meCandidate ? session.rsvp?.[meCandidate.id] : undefined;
 
   const mutation = useMutation({
     mutationFn: ({ playerId, status }: { playerId: string; status: RsvpStatus | null }) =>
@@ -47,7 +45,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
     }
   };
 
-  if (candidates.length === 0) return null;
+  if (teamPlayers.length === 0) return null;
 
   return (
     <section className={`${panel} space-y-4`}>
@@ -65,10 +63,10 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
         <div className="grid gap-4 md:grid-cols-[minmax(0,16rem)_1fr] md:items-end">
           <div>
             <label className={label}>Chi sei?</label>
-            <select value={meCandidate ? me : ""} onChange={(e) => chooseMe(e.target.value)} className={input}>
+            <select value={meCandidate ? meCandidate.id : ""} onChange={(e) => chooseMe(e.target.value)} className={input}>
               <option value="">Seleziona...</option>
-              {candidates.map((p) => (
-                <option key={p.playerId} value={p.playerId}>{p.name}</option>
+              {teamPlayers.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
               ))}
             </select>
           </div>
@@ -80,7 +78,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
                   key={s}
                   type="button"
                   disabled={!meCandidate || mutation.isPending}
-                  onClick={() => meCandidate && mutation.mutate({ playerId: meCandidate.playerId, status: active ? null : s })}
+                  onClick={() => meCandidate && mutation.mutate({ playerId: meCandidate.id, status: active ? null : s })}
                   className="rounded-sm border px-4 py-2 font-display text-xs uppercase tracking-widest transition disabled:opacity-40"
                   style={{
                     color: active ? "#010a13" : RSVP_COLORS[s],

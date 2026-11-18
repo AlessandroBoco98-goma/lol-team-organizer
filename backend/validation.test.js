@@ -32,6 +32,11 @@ test('validateSession: una sessione vecchia senza campi nuovi resta valida', () 
   assert.equal(validateSession(baseSession([basePlayer])), null);
 });
 
+test('validateSession: una sessione senza giocatori è valida (si compone dopo, dai "Ci sono")', () => {
+  assert.equal(validateSession(baseSession([])), null);
+  assert.deepEqual(sessionFields(baseSession([])).players, []);
+});
+
 test('validateSession: accetta playerId, riotId e regione', () => {
   const p = { ...basePlayer, playerId: 'abc', riotId: 'Faker#KR1', region: 'KR' };
   assert.equal(validateSession(baseSession([p])), null);

@@ -1,9 +1,9 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getSession, deleteSession, getPlayers } from "../lib/api";
-import { ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS } from "../types";
+import { getSession, deleteSession, getPlayers, updateSession } from "../lib/api";
+import { ROLES, ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS, type SessionPlayer } from "../types";
 import { championIcon } from "../lib/ddragon";
-import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer, rsvpOf } from "../lib/utils";
+import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer, rsvpOf, rsvpCounts, playersFromRsvp, whatsappShareUrl } from "../lib/utils";
 import { btnPrimary, btnGhost, btnDanger, panel, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
@@ -23,10 +23,36 @@ export default function SessionDetail() {
   // Il roster aggiorna nome, Riot ID e regione; se non carica restano i dati salvati nella sessione
   const { data: teamPlayers = [] } = useQuery({ queryKey: ["players"], queryFn: getPlayers });
 
+  const composeMutation = useMutation({
+    mutationFn: (players: SessionPlayer[]) =>
+      updateSession(id!, { date: session!.date, time: session!.time, notes: session!.notes, players }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["session", id] });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      // Ruoli e campioni vanno scelti nel form di modifica
+      navigate(`/edit/${id}`);
+    },
+    onError: () => alert("Impossibile impostare i giocatori. Controlla la password del team."),
+  });
+
   if (isLoading) return <LoadingSpinner />;
   if (error || !session) return <p className="text-red-400">Sessione non trovata.</p>;
 
   const past = isPastSession(session);
+
+  const yesCount = rsvpCounts(session, teamPlayers).yes;
+
+  const handleCompose = () => {
+    const composed = playersFromRsvp(session, teamPlayers);
+    if (!composed) {
+      alert(`Hanno risposto "Ci sono" in ${yesCount}, ma i ruoli sono ${ROLES.length}: scegli la squadra a mano da "Modifica".`);
+      return;
+    }
+    if (session.players.length > 0 && !confirm('Sostituire la composizione con chi ha risposto "Ci sono"? Chi non c\'è verrà tolto dalla sessione.')) {
+      return;
+    }
+    composeMutation.mutate(composed);
+  };
 
   const handleDelete = async () => {
     if (!confirm("Eliminare questa sessione?")) return;
@@ -62,7 +88,20 @@ export default function SessionDetail() {
       <RsvpPanel session={session} teamPlayers={teamPlayers} past={past} />
 
       <section className="space-y-4">
-        <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Composizione team</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Composizione team</h2>
+          {!past && yesCount > 0 && (
+            <button type="button" onClick={handleCompose} disabled={composeMutation.isPending} className={btnGhost}>
+              {composeMutation.isPending ? "Imposto..." : `Imposta giocatori dai "Ci sono" (${yesCount})`}
+            </button>
+          )}
+        </div>
+        {session.players.length === 0 && (
+          <p className="text-sm text-lol-text/50">
+            Nessun giocatore ancora: condividi la sessione su WhatsApp e, quando hanno risposto, imposta la squadra
+            dai "Ci sono".
+          </p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {session.players.map((raw, i) => {
             const p = resolveSessionPlayer(raw, teamPlayers);
@@ -111,7 +150,12 @@ export default function SessionDetail() {
       )}
 
       <div className="flex flex-wrap justify-center gap-3">
-        <a href={googleCalendarUrl(session)} target="_blank" rel="noreferrer" className={btnPrimary}>
+        {!past && (
+          <a href={whatsappShareUrl(session, window.location.origin)} target="_blank" rel="noreferrer" className={btnPrimary}>
+            Condividi su WhatsApp
+          </a>
+        )}
+        <a href={googleCalendarUrl(session)} target="_blank" rel="noreferrer" className={btnGhost}>
           + Google Calendar
         </a>
         <Link to={`/edit/${session.id}`} className={btnGhost}>Modifica</Link>

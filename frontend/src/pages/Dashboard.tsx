@@ -98,10 +98,12 @@ export default function Dashboard() {
                     </li>
                     );
                   })}
-                  {s.players.length === 0 && <li className="text-sm text-lol-text/50">Nessun giocatore</li>}
+                  {s.players.length === 0 && (
+                    <li className="text-sm text-lol-text/50">Squadra da comporre in base alle disponibilità</li>
+                  )}
                 </ul>
 
-                {!past && s.players.length > 0 && (
+                {!past && teamPlayers.length > 0 && (
                   <p className="flex flex-wrap gap-3 px-5 pb-3 text-xs">
                     {RSVP_STATUSES.map((st) => (
                       <span key={st} style={{ color: RSVP_COLORS[st] }}>
