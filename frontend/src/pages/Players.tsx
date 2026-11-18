@@ -6,6 +6,8 @@ import { normalizePhone } from "../lib/utils";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
 import RiotStatsButton from "../components/RiotStatsButton";
+import Modal, { ModalTitle } from "../components/Modal";
+import { toast } from "sonner";
 import { MessageCircle, Pencil, Trash2, Users } from "lucide-react";
 import { btnPrimary, btnGhost, panel, input, label, pageTitle, sectionTitle } from "../lib/styles";
 
@@ -113,8 +115,9 @@ export default function Players() {
     onSuccess: () => {
       refresh();
       setNewPlayer(emptyDraft);
+      toast.success("Giocatore aggiunto");
     },
-    onError: () => alert("Errore nella creazione. Controlla la password del team e il Riot ID."),
+    onError: () => toast.error("Il giocatore non è stato aggiunto. Controlla la password del team e il Riot ID."),
   });
 
   const updateMutation = useMutation({
@@ -122,14 +125,18 @@ export default function Players() {
     onSuccess: () => {
       refresh();
       setEditing(null);
+      toast.success("Modifiche salvate");
     },
-    onError: () => alert("Errore nell'aggiornamento."),
+    onError: () => toast.error("Le modifiche non sono state salvate. Controlla la password del team."),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deletePlayer,
-    onSuccess: refresh,
-    onError: () => alert("Errore nell'eliminazione."),
+    onSuccess: () => {
+      refresh();
+      toast.success("Giocatore eliminato");
+    },
+    onError: () => toast.error("Il giocatore non è stato eliminato. Controlla la password del team."),
   });
 
   const createInvalid = !newPlayer.name.trim() || !!draftError(newPlayer);
@@ -162,8 +169,8 @@ export default function Players() {
     <div className="space-y-8">
       <div>
         <h1 className={pageTitle}>Giocatori</h1>
-        <div className="title-rule mt-3" />
-        <p className="mt-3 text-lol-text/60">I membri del tuo team</p>
+        <div className="title-rule mt-4" />
+        <p className="mt-3 text-lol-mist">Chi fa parte del team e come trovarlo su Riot.</p>
       </div>
 
       <form onSubmit={handleCreate} className={`${panel} space-y-4`}>
@@ -188,28 +195,24 @@ export default function Players() {
       <section className="space-y-4">
         <h2 className={sectionTitle}>
           <Users size={20} aria-hidden /> Roster
-          <span className="rounded-full bg-white/10 px-2.5 py-0.5 font-sans text-xs text-lol-text/70">{players.length}</span>
+          <span className="tabular rounded-full bg-white/10 px-2.5 py-0.5 font-sans text-xs font-medium text-lol-mist">{players.length}</span>
         </h2>
         {players.length === 0 && (
-          <div className="glass rounded-xl p-10 text-center text-lol-text/50">Nessun giocatore registrato</div>
+          <div className="panel p-10 text-center text-lol-mist">Nessun giocatore nel roster. Aggiungine uno qui sopra.</div>
         )}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {players.map((player, idx) => (
-            <div
-              key={player.id}
-              style={{ animationDelay: `${Math.min(idx, 8) * 60}ms` }}
-              className="glass glass-hover animate-fade-up flex flex-col gap-4 rounded-xl p-5"
-            >
+          {players.map((player) => (
+            <div key={player.id} className="panel panel-hover flex flex-col gap-4 p-5">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-lol-gold/50 bg-linear-to-br from-[#1b2f55] to-[#0a323c] font-display text-lg font-bold text-lol-gold shadow-[0_0_18px_-6px_rgb(200_170_110/0.7)]">
+                <div className="chamfer flex h-12 w-12 shrink-0 items-center justify-center bg-linear-to-b from-[#ecd9a8] to-[#a58545] font-display text-2xl font-extrabold text-[#060a12] [--c:10px]">
                   {player.name.trim().charAt(0).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-lg font-medium">{player.name}</p>
+                  <p className="truncate font-display text-2xl font-bold leading-none">{player.name}</p>
                   {player.riotId && player.region ? (
-                    <p className="truncate text-xs text-lol-text/50">{player.riotId} · {player.region}</p>
+                    <p className="mt-1 truncate text-xs text-lol-mist">{player.riotId} · {player.region}</p>
                   ) : (
-                    <p className="text-xs text-lol-text/30">Riot ID non impostato</p>
+                    <p className="mt-1 text-xs text-lol-mist/60">Riot ID non impostato</p>
                   )}
                 </div>
               </div>
@@ -242,29 +245,27 @@ export default function Players() {
         </div>
       </section>
 
-      {editing && (
-        <div className="animate-fade-in fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className={`${panel} animate-pop max-h-full w-full max-w-2xl space-y-4 overflow-y-auto`}>
-            <h3 className="font-display text-lg uppercase tracking-widest text-lol-gold">Modifica giocatore</h3>
-            <div>
-              <label className={label}>Nome</label>
-              <input
-                type="text"
-                value={editDraft.name}
-                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
-                className={input}
-              />
-            </div>
-            <RiotFields draft={editDraft} onChange={setEditDraft} />
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setEditing(null)} className={btnGhost}>Annulla</button>
-              <button onClick={handleSaveEdit} disabled={editInvalid || updateMutation.isPending} className={btnPrimary}>
-                Salva
-              </button>
-            </div>
-          </div>
+      <Modal open={!!editing} onOpenChange={(o) => !o && setEditing(null)} className="max-w-2xl space-y-4">
+        <ModalTitle asChild>
+          <h3 className="font-display text-2xl font-bold">Modifica giocatore</h3>
+        </ModalTitle>
+        <div>
+          <label className={label}>Nome</label>
+          <input
+            type="text"
+            value={editDraft.name}
+            onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+            className={input}
+          />
         </div>
-      )}
+        <RiotFields draft={editDraft} onChange={setEditDraft} />
+        <div className="flex justify-end gap-3">
+          <button onClick={() => setEditing(null)} className={btnGhost}>Annulla</button>
+          <button onClick={handleSaveEdit} disabled={editInvalid || updateMutation.isPending} className={btnPrimary}>
+            Salva modifiche
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

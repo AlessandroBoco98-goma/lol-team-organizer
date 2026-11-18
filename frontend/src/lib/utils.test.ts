@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   countdownLabel,
+  countdownParts,
+  lobbySlots,
   dateBadge,
   findTeamPlayer,
   normalizePhone,
@@ -107,6 +109,52 @@ describe('playersFromRsvp', () => {
     expect(playersFromRsvp({ players: [], rsvp }, big)).toBeNull();
     const five = Object.fromEntries(big.slice(0, 5).map((p) => [p.id, 'yes' as const]));
     expect(playersFromRsvp({ players: [], rsvp: five }, big)).toHaveLength(5);
+  });
+});
+
+describe('countdownParts', () => {
+  const now = new Date('2026-11-18T12:00:00');
+
+  it('scompone il tempo mancante', () => {
+    const t = new Date('2026-11-20T14:30:15');
+    expect(countdownParts(t, now)).toEqual({ total: t.getTime() - now.getTime(), days: 2, hours: 2, minutes: 30, seconds: 15 });
+  });
+
+  it('non va in negativo a evento passato', () => {
+    expect(countdownParts(new Date('2026-11-18T11:00:00'), now)).toEqual({ total: 0, days: 0, hours: 0, minutes: 0, seconds: 0 });
+  });
+});
+
+describe('lobbySlots', () => {
+  const roster: Player[] = [
+    { id: 'p1', name: 'Faker', createdAt: '' },
+    { id: 'p2', name: 'Chovy', createdAt: '' },
+    { id: 'p3', name: 'Zeus', createdAt: '' },
+  ];
+
+  it('con la composizione fatta ha un posto per ruolo, nell\'ordine dei ruoli', () => {
+    const players: SessionPlayer[] = [
+      { playerId: 'p1', name: 'Faker', role: 'MID', champions: [{ id: 'Ahri', name: 'Ahri' }] },
+      { playerId: 'p2', name: 'Chovy', role: 'TOP', champions: [] },
+    ];
+    const slots = lobbySlots({ players, rsvp: { p1: 'yes', p2: 'maybe' } }, roster);
+    expect(slots.map((s) => s.role)).toEqual(['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT']);
+    expect(slots[0]).toMatchObject({ name: 'Chovy', status: 'maybe' });
+    expect(slots[2]).toMatchObject({ name: 'Faker', championId: 'Ahri', status: 'yes' });
+    expect(slots[1]).toEqual({ role: 'JUNGLE' });
+  });
+
+  it('senza composizione mostra solo chi ha confermato, gli altri posti sono vuoti', () => {
+    const slots = lobbySlots({ players: [], rsvp: { p1: 'yes', p2: 'maybe', p3: 'yes' } }, roster);
+    expect(slots).toHaveLength(5);
+    expect(slots.filter((s) => s.name).map((s) => s.name)).toEqual(['Faker', 'Zeus']);
+    expect(slots[4]).toEqual({});
+  });
+
+  it('non supera i 5 posti', () => {
+    const big: Player[] = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((id) => ({ id, name: id, createdAt: '' }));
+    const rsvp = Object.fromEntries(big.map((p) => [p.id, 'yes' as const]));
+    expect(lobbySlots({ players: [], rsvp }, big)).toHaveLength(5);
   });
 });
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { setRsvp } from "../lib/api";
 import { CalendarCheck, Check, Clock, MessageCircle, X } from "lucide-react";
+import { toast } from "sonner";
 import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type RsvpStatus, type Session } from "../types";
 import { rsvpCounts, sessionInviteText, whatsappChatUrl } from "../lib/utils";
 import { label, input, panel, sectionTitle } from "../lib/styles";
@@ -35,7 +36,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
       queryClient.invalidateQueries({ queryKey: ["session", session.id] });
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
     },
-    onError: () => alert("Impossibile salvare la risposta. Controlla la password del team."),
+    onError: () => toast.error("La risposta non è stata salvata. Controlla la password del team."),
   });
 
   const chooseMe = (playerId: string) => {
@@ -81,12 +82,12 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
                   type="button"
                   disabled={!meCandidate || mutation.isPending}
                   onClick={() => meCandidate && mutation.mutate({ playerId: meCandidate.id, status: active ? null : s })}
-                  className="inline-flex items-center gap-2 rounded-md border px-4 py-2.5 font-display text-xs uppercase tracking-widest transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40"
+                  className="chamfer inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40 [--c:9px]"
                   style={{
-                    color: active ? "#010a13" : RSVP_COLORS[s],
-                    backgroundColor: active ? RSVP_COLORS[s] : `${RSVP_COLORS[s]}10`,
-                    borderColor: RSVP_COLORS[s],
-                    boxShadow: active ? `0 8px 22px -8px ${RSVP_COLORS[s]}` : undefined,
+                    color: active ? "#060a12" : RSVP_COLORS[s],
+                    backgroundColor: active ? RSVP_COLORS[s] : `${RSVP_COLORS[s]}12`,
+                    // Il bordo è un'ombra interna: il clip-path taglierebbe un bordo normale agli angoli
+                    boxShadow: `inset 0 0 0 1px ${RSVP_COLORS[s]}${active ? "" : "80"}`,
                   }}
                   aria-pressed={active}
                 >
@@ -98,7 +99,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
           </div>
         </div>
       )}
-      {!past && <p className="text-xs text-lol-text/50">Clicca di nuovo sulla tua risposta per annullarla.</p>}
+      {!past && <p className="text-xs text-lol-mist">Clicca di nuovo sulla tua risposta per annullarla.</p>}
 
       {!past && pending.length > 0 && (
         <div className="space-y-2 border-t border-lol-gold/15 pt-4">

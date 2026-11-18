@@ -104,6 +104,57 @@ export function rsvpCounts(session: Pick<Session, 'rsvp'>, team: Player[]): Rsvp
   return counts;
 }
 
+export interface CountdownParts {
+  total: number; // millisecondi rimanenti, mai negativi
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
+// Giorni, ore, minuti e secondi che mancano a un istante
+export function countdownParts(target: Date, now: Date = new Date()): CountdownParts {
+  const total = Math.max(0, target.getTime() - now.getTime());
+  const s = Math.floor(total / 1000);
+  return {
+    total,
+    days: Math.floor(s / 86_400),
+    hours: Math.floor((s % 86_400) / 3_600),
+    minutes: Math.floor((s % 3_600) / 60),
+    seconds: s % 60,
+  };
+}
+
+// Uno dei 5 posti della lobby: con il ruolo se la composizione è già fatta, altrimenti solo chi ha confermato
+export interface LobbySlot {
+  role?: Role;
+  playerId?: string;
+  name?: string;
+  championId?: string;
+  status?: RsvpStatus;
+}
+
+export function lobbySlots(session: Pick<Session, 'players' | 'rsvp'>, team: Player[]): LobbySlot[] {
+  if (session.players.length > 0) {
+    return ROLES.map((role) => {
+      const raw = session.players.find((p) => p.role === role);
+      if (!raw) return { role };
+      const p = resolveSessionPlayer(raw, team);
+      return {
+        role,
+        playerId: p.playerId,
+        name: p.name,
+        championId: p.champions[0]?.id,
+        status: p.playerId ? session.rsvp?.[p.playerId] : undefined,
+      };
+    });
+  }
+  const yes = team.filter((p) => session.rsvp?.[p.id] === 'yes').slice(0, ROLES.length);
+  return Array.from({ length: ROLES.length }, (_, i) =>
+    yes[i] ? { playerId: yes[i].id, name: yes[i].name, status: 'yes' as const } : {},
+  );
+}
+
 // Primo ruolo ancora libero
 export function nextFreeRole(players: Pick<SessionPlayer, 'role'>[]): Role {
   const used = players.map((p) => p.role);

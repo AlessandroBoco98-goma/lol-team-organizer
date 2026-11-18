@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarPlus, Clock, ExternalLink, MessageCircle, Pencil, Sparkles, StickyNote, Swords, Trash2 } from "lucide-react";
@@ -12,6 +13,7 @@ import {
   formatTime,
   isPastSession,
   googleCalendarUrl,
+  lobbySlots,
   resolveSessionPlayer,
   rsvpOf,
   rsvpCounts,
@@ -25,6 +27,8 @@ import OpggButton from "../components/OpggButton";
 import RiotStatsButton from "../components/RiotStatsButton";
 import RsvpPanel from "../components/RsvpPanel";
 import RsvpBar from "../components/RsvpBar";
+import Lobby from "../components/Lobby";
+import LiveCountdown from "../components/LiveCountdown";
 import DraftPanel from "../components/DraftPanel";
 
 export default function SessionDetail() {
@@ -55,7 +59,7 @@ export default function SessionDetail() {
       // Ruoli e campioni vanno scelti nel form di modifica
       navigate(`/edit/${id}`);
     },
-    onError: () => alert("Impossibile impostare i giocatori. Controlla la password del team."),
+    onError: () => toast.error("I giocatori non sono stati impostati. Controlla la password del team."),
   });
 
   if (isLoading) return <LoadingSpinner />;
@@ -69,7 +73,7 @@ export default function SessionDetail() {
   const handleCompose = () => {
     const composed = playersFromRsvp(session, teamPlayers);
     if (!composed) {
-      alert(`Hanno risposto "Ci sono" in ${yesCount}, ma i ruoli sono ${ROLES.length}: scegli la squadra a mano da "Modifica".`);
+      toast.warning(`Hanno confermato in ${yesCount}, ma i ruoli sono ${ROLES.length}: scegli la squadra da "Modifica".`);
       return;
     }
     if (session.players.length > 0 && !confirm('Sostituire la composizione con chi ha risposto "Ci sono"? Chi non c\'è verrà tolto dalla sessione.')) {
@@ -85,7 +89,7 @@ export default function SessionDetail() {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
       navigate("/");
     } catch {
-      alert("Impossibile eliminare la sessione.");
+      toast.error("La sessione non è stata eliminata. Controlla la password del team.");
     }
   };
 
@@ -93,39 +97,40 @@ export default function SessionDetail() {
     <div className="space-y-8">
       <button
         onClick={() => navigate("/")}
-        className="group flex items-center gap-2 text-sm text-lol-text/60 transition hover:text-lol-gold"
+        className="group flex items-center gap-2 text-sm text-lol-mist transition hover:text-lol-gold"
       >
         <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" aria-hidden /> Calendario
       </button>
 
-      <section className={`${panel} relative space-y-5 overflow-hidden`}>
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-lol-gold/10 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 left-10 h-48 w-48 rounded-full bg-lol-teal/10 blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className={`${pageTitle} first-letter:uppercase`}>{formatDate(session.date)}</h1>
-            <div className="title-rule mt-3" />
-            <p className="mt-3 flex items-center gap-2 text-lg text-lol-text/70">
-              <Clock size={18} className="text-lol-gold" aria-hidden /> Ore {formatTime(session.time)}
-            </p>
+      <section className="panel relative overflow-hidden p-6 sm:p-8 [--c:22px]">
+        <div className="hex-bg pointer-events-none absolute inset-0 -z-10 [mask-image:linear-gradient(100deg,transparent_30%,black)]" />
+        <div className="grid gap-8 lg:grid-cols-[1.05fr_1fr] lg:items-center">
+          <div className="space-y-6">
+            <div>
+              <h1 className={`${pageTitle} first-letter:uppercase`}>{formatDate(session.date)}</h1>
+              <div className="title-rule mt-4" />
+              <p className="mt-4 flex items-center gap-2 text-lg text-lol-mist">
+                <Clock size={18} className="text-lol-gold" aria-hidden /> ore{" "}
+                <span className="tabular font-semibold text-lol-text">{formatTime(session.time)}</span>
+              </p>
+            </div>
+            {past ? (
+              <p className="inline-block rounded-full bg-white/10 px-4 py-1.5 text-sm font-semibold text-lol-mist">{label}</p>
+            ) : (
+              <LiveCountdown target={new Date(`${session.date}T${session.time}:00`)} />
+            )}
           </div>
-          <span
-            className={`rounded-full px-4 py-1.5 font-display text-xs uppercase tracking-widest ${
-              past
-                ? "bg-white/10 text-lol-text/60"
-                : label === "In corso"
-                  ? "animate-pulse-glow bg-lol-teal/20 text-lol-teal"
-                  : "bg-lol-teal/15 text-lol-teal"
-            }`}
-          >
-            {label}
-          </span>
+          <div className="space-y-4">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="font-display text-2xl font-bold">Lobby</h2>
+              <p className="text-sm text-lol-mist">
+                {lobbySlots(session, teamPlayers).filter((s) => s.name).length} su 5 posti
+              </p>
+            </div>
+            <Lobby slots={lobbySlots(session, teamPlayers)} />
+            {teamPlayers.length > 0 && <RsvpBar counts={counts} />}
+          </div>
         </div>
-        {teamPlayers.length > 0 && (
-          <div className="relative max-w-xl">
-            <RsvpBar counts={counts} />
-          </div>
-        )}
       </section>
 
       <RsvpPanel session={session} teamPlayers={teamPlayers} past={past} />
@@ -143,8 +148,8 @@ export default function SessionDetail() {
           )}
         </div>
         {session.players.length === 0 && (
-          <div className="glass rounded-xl border-dashed p-8 text-center text-sm text-lol-text/50">
-            Nessun giocatore ancora: condividi la sessione su WhatsApp e, quando hanno risposto, imposta la squadra
+          <div className="panel p-8 text-center text-sm text-lol-mist">
+            Nessun giocatore ancora. Condividi la sessione su WhatsApp e, quando hanno risposto, imposta la squadra
             dai "Ci sono".
           </div>
         )}
@@ -156,16 +161,13 @@ export default function SessionDetail() {
             return (
               <div
                 key={i}
-                style={{ "--role": color, animationDelay: `${i * 80}ms` } as CSSProperties}
-                className="glass glass-hover animate-fade-up relative overflow-hidden rounded-xl p-5 hover:shadow-[0_20px_44px_-18px_var(--role)]"
+                style={{ "--edge-a": `${color}b3`, "--edge-b": `${color}2a` } as CSSProperties}
+                className="panel panel-hover relative p-5"
               >
-                <div className="absolute inset-x-0 top-0 h-1" style={{ background: `linear-gradient(90deg, ${color}, transparent)` }} />
-                <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-20 blur-2xl" style={{ backgroundColor: color }} />
-
                 <div className="relative flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate font-display text-lg font-bold">{p.name}</p>
-                    <p className="mt-0.5 font-display text-xs uppercase tracking-widest" style={{ color }}>
+                    <p className="truncate font-display text-2xl font-bold leading-none">{p.name}</p>
+                    <p className="mt-1.5 text-sm font-semibold" style={{ color }}>
                       {ROLE_LABELS[p.role]}
                     </p>
                   </div>
@@ -201,13 +203,13 @@ export default function SessionDetail() {
                           src={championIcon(c.id)}
                           alt={c.name}
                           loading="lazy"
-                          className="h-14 w-14 rounded-lg border border-lol-gold/40 shadow-lg transition duration-200 group-hover/champ:scale-110 group-hover/champ:border-lol-gold"
+                          className="h-14 w-14 rounded-md border border-lol-gold/40 shadow-lg transition duration-200 group-hover/champ:scale-110 group-hover/champ:border-lol-gold"
                         />
-                        <span className={`text-center text-[11px] leading-tight text-lol-text/70 ${blocked ? "line-through" : ""}`}>
+                        <span className={`text-center text-xs leading-tight text-lol-text/80 ${blocked ? "line-through" : ""}`}>
                           {c.name}
                         </span>
-                        {blocked && <span className="text-center text-[9px] leading-tight text-red-400">{BLOCK_LABELS[blocked]}</span>}
-                        <span className="flex items-center gap-0.5 text-[9px] uppercase tracking-wider text-lol-gold/60 transition group-hover/champ:text-lol-gold">
+                        {blocked && <span className="text-center text-[10px] leading-tight text-red-400">{BLOCK_LABELS[blocked]}</span>}
+                        <span className="flex items-center gap-0.5 text-[10px] text-lol-gold/60 transition group-hover/champ:text-lol-gold">
                           build <ExternalLink size={8} aria-hidden />
                         </span>
                       </a>
@@ -231,7 +233,7 @@ export default function SessionDetail() {
       )}
 
       {session.notes && (
-        <section className={`${panel} border-l-4 border-l-lol-gold/60`}>
+        <section className={panel}>
           <h2 className={`${sectionTitle} mb-3`}>
             <StickyNote size={18} aria-hidden /> Note
           </h2>

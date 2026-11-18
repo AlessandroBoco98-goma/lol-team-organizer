@@ -1,6 +1,5 @@
-import { useEffect } from "react";
-import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
+import Modal, { ModalTitle } from "./Modal";
 import { Activity, RefreshCw, Trophy, X } from "lucide-react";
 import { apiErrorMessage, getPlayerRiot } from "../lib/api";
 import { championIcon, getItemNames, getKeystones, getLatestVersion, itemIcon, type KeystoneInfo } from "../lib/ddragon";
@@ -63,28 +62,17 @@ export default function RiotStatsModal({
     staleTime: Infinity,
   });
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  // Nel body, perché dentro una card con transform "fixed" non coprirebbe tutta la pagina
-  return createPortal(
-    <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 py-8 backdrop-blur-sm"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Statistiche di ${name}`}
-    >
-      <div className="glass animate-pop w-full max-w-3xl space-y-6 rounded-xl p-6">
+  // Modal usa un portale nel body: dentro una card con transform un "fixed" non coprirebbe tutta la pagina
+  return (
+    <Modal open onOpenChange={(o) => !o && onClose()} className="max-w-3xl space-y-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h2 className={sectionTitle}>
-              <Activity size={20} aria-hidden /> {name}
-            </h2>
-            <p className="mt-1 text-sm text-lol-text/50">{riotId}</p>
+            <ModalTitle asChild>
+              <h2 className={sectionTitle}>
+                <Activity size={20} aria-hidden /> {name}
+              </h2>
+            </ModalTitle>
+            <p className="mt-1 text-sm text-lol-mist">{riotId} · statistiche Riot</p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -123,7 +111,7 @@ export default function RiotStatsModal({
               )}
               {data.ranks.map((r) => (
                 <div key={r.queue} className="min-w-44 flex-1 rounded-lg border border-lol-gold/20 bg-black/20 px-4 py-3">
-                  <p className="font-display text-[10px] uppercase tracking-widest text-lol-text/50">
+                  <p className="text-xs text-lol-mist">
                     {r.queue === "solo" ? "Classificata Solo/Duo" : "Classificata Flex"}
                   </p>
                   <p className="mt-1 flex items-center gap-2 text-lg font-medium" style={{ color: TIER_COLORS[r.tier] }}>
@@ -142,7 +130,7 @@ export default function RiotStatsModal({
             ) : (
               <>
                 <section className="space-y-3">
-                  <h3 className="font-display text-sm uppercase tracking-widest text-lol-gold">Campioni più giocati</h3>
+                  <h3 className="font-display text-xl font-bold">Campioni più giocati</h3>
                   <ul className="space-y-2">
                     {data.champions.slice(0, 5).map((c) => (
                       <li key={c.championId} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-lol-gold/15 bg-black/20 p-3">
@@ -165,8 +153,8 @@ export default function RiotStatsModal({
                 </section>
 
                 <section className="space-y-3">
-                  <h3 className="font-display text-sm uppercase tracking-widest text-lol-gold">
-                    Ultime partite <span className="font-sans text-xs normal-case text-lol-text/40">({data.recent.length} su {data.gamesAnalyzed})</span>
+                  <h3 className="font-display text-xl font-bold">
+                    Ultime partite <span className="font-sans text-xs font-normal text-lol-mist">({data.recent.length} su {data.gamesAnalyzed})</span>
                   </h3>
                   <ul className="space-y-2">
                     {data.recent.map((m) => (
@@ -200,8 +188,6 @@ export default function RiotStatsModal({
             </p>
           </>
         )}
-      </div>
-    </div>,
-    document.body,
+    </Modal>
   );
 }

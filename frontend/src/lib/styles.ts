@@ -1,22 +1,27 @@
-export const btnPrimary =
-  'btn-shine inline-flex items-center justify-center gap-2 rounded-md border border-[#f0e6d2]/40 bg-linear-to-b from-[#e0c488] via-[#c8aa6e] to-[#8a6a2e] px-5 py-2.5 font-display text-sm font-bold uppercase tracking-widest text-[#010a13] shadow-[0_6px_20px_-6px_rgb(200_170_110/0.55)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_28px_-6px_rgb(200_170_110/0.75)] active:translate-y-0 disabled:pointer-events-none disabled:opacity-40';
+// Pulsanti: forma smussata (stesso taglio dei pannelli, più piccolo), testo con la sola iniziale maiuscola
+const btnBase =
+  'chamfer inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold transition duration-200 disabled:pointer-events-none disabled:opacity-40 [--c:9px]';
 
-export const btnGhost =
-  'inline-flex items-center justify-center gap-2 rounded-md border border-lol-gold/40 bg-white/[0.02] px-5 py-2.5 font-display text-sm uppercase tracking-widest text-lol-gold transition duration-200 hover:-translate-y-0.5 hover:border-lol-gold hover:bg-lol-gold/10 disabled:pointer-events-none disabled:opacity-40';
+export const btnPrimary = `${btnBase} bg-linear-to-b from-[#ecd9a8] via-[#d2b676] to-[#a58545] text-[#0a0f18] hover:brightness-110 active:brightness-95`;
 
-export const btnDanger =
-  'inline-flex items-center justify-center gap-2 rounded-md border border-red-700/70 bg-red-950/10 px-5 py-2.5 font-display text-sm uppercase tracking-widest text-red-400 transition duration-200 hover:-translate-y-0.5 hover:border-red-500 hover:bg-red-900/30 disabled:pointer-events-none disabled:opacity-40';
+// Il bordo dei pulsanti secondari è un'ombra interna: il clip-path taglierebbe un bordo normale agli angoli
+export const btnGhost = `${btnBase} bg-white/[0.03] text-lol-gold shadow-[inset_0_0_0_1px_rgb(201_169_106/0.4)] hover:bg-lol-gold/10 hover:shadow-[inset_0_0_0_1px_rgb(236_217_168/0.8)]`;
 
-export const panel = 'glass rounded-xl p-6';
+export const btnDanger = `${btnBase} bg-red-950/10 text-red-400 shadow-[inset_0_0_0_1px_rgb(239_68_68/0.45)] hover:bg-red-900/30 hover:shadow-[inset_0_0_0_1px_rgb(248_113_113/0.9)]`;
+
+export const panel = 'panel p-6';
 
 export const input =
-  'w-full rounded-md border border-lol-gold/25 bg-[#010a13]/70 px-3 py-2.5 text-lol-text outline-none transition placeholder:text-lol-text/30 focus:border-lol-gold focus:ring-2 focus:ring-lol-gold/25 disabled:opacity-50';
+  'w-full rounded-sm border border-lol-gold/25 bg-[#05080f]/80 px-3 py-2.5 text-lol-text outline-none transition placeholder:text-lol-mist/60 focus:border-lol-gold focus:ring-2 focus:ring-lol-gold/25 disabled:opacity-50';
 
-export const label = 'mb-1.5 block font-display text-xs uppercase tracking-widest text-lol-gold';
+export const label = 'mb-1.5 block text-sm font-medium text-lol-mist';
 
-export const pageTitle = 'font-display text-3xl font-bold uppercase tracking-widest text-gold-gradient sm:text-4xl';
+export const pageTitle = 'font-display text-4xl font-extrabold leading-none tracking-tight text-gold-gradient sm:text-5xl';
 
-export const sectionTitle = 'flex items-center gap-2 font-display text-lg uppercase tracking-widest text-lol-gold';
+export const sectionTitle = 'flex items-center gap-2.5 font-display text-2xl font-bold tracking-tight text-lol-text';
 
 // Piccolo link-pulsante (azioni secondarie nelle card)
-export const linkAction = 'text-sm text-lol-gold transition hover:text-lol-text';
+export const linkAction = 'text-sm text-lol-gold transition hover:text-lol-gold-bright';
+
+// Etichetta compatta (stato, ruolo)
+export const pill = 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium';

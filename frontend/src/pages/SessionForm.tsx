@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { getSession, createSession, updateSession, getChampions, getPlayers } from "../lib/api";
 import { ArrowLeft, Plus, Trash2, Users } from "lucide-react";
+import { toast } from "sonner";
 import { ROLES, ROLE_COLORS, ROLE_LABELS, MAX_CHAMPIONS, type Role, type SessionPlayer, type Champion } from "../types";
 import { todayISO, findTeamPlayer, resolveSessionPlayer, nextFreeRole } from "../lib/utils";
 import { championIcon } from "../lib/ddragon";
@@ -49,10 +50,11 @@ export default function SessionForm() {
     onSuccess: (saved, variables) => {
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
       queryClient.invalidateQueries({ queryKey: ["session", saved.id] });
+      toast.success(id ? "Sessione aggiornata" : "Sessione creata");
       // Senza giocatori la sessione serve a raccogliere le disponibilità: si va al dettaglio per condividerla
       navigate(variables.players.length === 0 ? `/session/${saved.id}` : "/");
     },
-    onError: () => alert("Errore nel salvataggio. Controlla la password del team."),
+    onError: () => toast.error("La sessione non è stata salvata. Controlla la password del team."),
   });
 
   const patchPlayer = (index: number, patch: Partial<SessionPlayer>) =>
@@ -94,7 +96,7 @@ export default function SessionForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) {
-      alert("Compila tutti i campi: ogni giocatore aggiunto deve avere un nome, un ruolo univoco e almeno un campione.");
+      toast.warning("Ogni giocatore aggiunto ha bisogno di un nome, di un ruolo diverso dagli altri e di almeno un campione.");
       return;
     }
     // Allinea nomi e Riot ID dei giocatori ai dati attuali del roster prima di salvare
@@ -159,11 +161,11 @@ export default function SessionForm() {
             return (
               <div
                 key={index}
-                className={`${panel} animate-pop space-y-4 border-l-4`}
-                style={{ borderLeftColor: ROLE_COLORS[player.role] }}
+                className={`${panel} animate-pop space-y-4`}
+                style={{ "--edge-a": `${ROLE_COLORS[player.role]}b3`, "--edge-b": `${ROLE_COLORS[player.role]}2a` } as React.CSSProperties}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display uppercase tracking-widest text-lol-gold">Giocatore {index + 1}</h3>
+                  <h3 className="font-display text-2xl font-bold">Giocatore {index + 1}</h3>
                   <button
                     type="button"
                     onClick={() => removePlayer(index)}

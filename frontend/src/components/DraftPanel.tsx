@@ -14,6 +14,7 @@ import {
   type SessionPlayer,
 } from "../types";
 import { Ban } from "lucide-react";
+import { toast } from "sonner";
 import { btnPrimary, input, label, panel, sectionTitle } from "../lib/styles";
 
 const EMPTY_DRAFT: Draft = { allyBans: [], enemyBans: [], enemyPicks: [], notes: "" };
@@ -106,8 +107,9 @@ export default function DraftPanel({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["session", session.id] });
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
+      toast.success("Draft salvato");
     },
-    onError: () => alert("Impossibile salvare il draft. Controlla la password del team."),
+    onError: () => toast.error("Il draft non è stato salvato. Controlla la password del team."),
   });
 
   return (
@@ -156,7 +158,7 @@ export default function DraftPanel({
 
       {insights.length > 0 && (
         <div className="space-y-2 rounded-lg border border-lol-gold/15 bg-black/20 p-4">
-          <h3 className="font-display text-sm uppercase tracking-widest text-lol-gold">Suggerimenti sulla composizione</h3>
+          <h3 className="font-display text-xl font-bold">Suggerimenti sulla composizione</h3>
           <ul className="space-y-1 text-sm">
             {insights.map((i, idx) => (
               <li key={idx} className="flex gap-2">
