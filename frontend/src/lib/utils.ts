@@ -57,6 +57,15 @@ export function isPastSession(s: Pick<Session, 'date' | 'time'>): boolean {
   return new Date(`${s.date}T${s.time}:00`) < new Date();
 }
 
+// Unico campione il cui indirizzo su probuildstats.com non coincide con l'id di Data Dragon (verificato su 173 campioni)
+const PROBUILD_SLUG_EXCEPTIONS: Record<string, string> = { MonkeyKing: 'wukong' };
+
+// Pagina con le build dei pro per un campione su probuildstats.com; è un semplice link, nessun dato viene copiato
+export function probuildUrl(championId: string): string {
+  const slug = PROBUILD_SLUG_EXCEPTIONS[championId] ?? championId.toLowerCase();
+  return `https://probuildstats.com/champion/${encodeURIComponent(slug)}`;
+}
+
 // Giocatore del roster corrispondente a un giocatore di sessione: per id, altrimenti (sessioni vecchie) per nome
 export function findTeamPlayer(sp: Pick<SessionPlayer, 'name' | 'playerId'>, team: Player[]): Player | undefined {
   return (sp.playerId ? team.find((p) => p.id === sp.playerId) : undefined) ?? team.find((p) => p.name === sp.name);

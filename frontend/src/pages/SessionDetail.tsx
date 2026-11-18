@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CalendarPlus, Clock, MessageCircle, Pencil, Sparkles, StickyNote, Swords, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Clock, ExternalLink, MessageCircle, Pencil, Sparkles, StickyNote, Swords, Trash2 } from "lucide-react";
 import { getSession, deleteSession, getPlayers, updateSession, getChampions } from "../lib/api";
 import { blockReason, BLOCK_LABELS } from "../lib/composition";
 import { ROLES, ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS, type SessionPlayer } from "../types";
@@ -16,6 +16,7 @@ import {
   rsvpOf,
   rsvpCounts,
   playersFromRsvp,
+  probuildUrl,
   whatsappShareUrl,
 } from "../lib/utils";
 import { btnPrimary, btnGhost, btnDanger, panel, pageTitle, sectionTitle } from "../lib/styles";
@@ -184,10 +185,13 @@ export default function SessionDetail() {
                   {p.champions.map((c) => {
                     const blocked = blockReason(c.id, session.draft);
                     return (
-                      <div
+                      <a
                         key={c.id}
+                        href={probuildUrl(c.id)}
+                        target="_blank"
+                        rel="noreferrer"
                         className={`group/champ flex w-16 flex-col items-center gap-1 ${blocked ? "opacity-40 grayscale" : ""}`}
-                        title={blocked ? BLOCK_LABELS[blocked] : c.name}
+                        title={`${blocked ? `${c.name} · ${BLOCK_LABELS[blocked]}` : c.name} — build dei pro su Probuilds Stats`}
                       >
                         <img
                           src={championIcon(c.id)}
@@ -199,7 +203,10 @@ export default function SessionDetail() {
                           {c.name}
                         </span>
                         {blocked && <span className="text-center text-[9px] leading-tight text-red-400">{BLOCK_LABELS[blocked]}</span>}
-                      </div>
+                        <span className="flex items-center gap-0.5 text-[9px] uppercase tracking-wider text-lol-gold/60 transition group-hover/champ:text-lol-gold">
+                          build <ExternalLink size={8} aria-hidden />
+                        </span>
+                      </a>
                     );
                   })}
                   {p.champions.length === 0 && <span className="text-sm text-lol-text/40">Nessun campione</span>}

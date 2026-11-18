@@ -6,6 +6,7 @@ import {
   normalizePhone,
   opggUrl,
   playersFromRsvp,
+  probuildUrl,
   resolveSessionPlayer,
   rsvpCounts,
   rsvpOf,
@@ -106,6 +107,19 @@ describe('playersFromRsvp', () => {
     expect(playersFromRsvp({ players: [], rsvp }, big)).toBeNull();
     const five = Object.fromEntries(big.slice(0, 5).map((p) => [p.id, 'yes' as const]));
     expect(playersFromRsvp({ players: [], rsvp: five }, big)).toHaveLength(5);
+  });
+});
+
+describe('probuildUrl', () => {
+  it('usa l\'id di Data Dragon in minuscolo', () => {
+    expect(probuildUrl('Jinx')).toBe('https://probuildstats.com/champion/jinx');
+    expect(probuildUrl('AurelionSol')).toBe('https://probuildstats.com/champion/aurelionsol');
+    expect(probuildUrl('DrMundo')).toBe('https://probuildstats.com/champion/drmundo');
+    expect(probuildUrl('Belveth')).toBe('https://probuildstats.com/champion/belveth');
+  });
+
+  it('gestisce l\'unica eccezione: Wukong', () => {
+    expect(probuildUrl('MonkeyKing')).toBe('https://probuildstats.com/champion/wukong');
   });
 });
 
