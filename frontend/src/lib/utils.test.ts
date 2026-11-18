@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findTeamPlayer, opggUrl, resolveSessionPlayer } from './utils';
+import { findTeamPlayer, opggUrl, resolveSessionPlayer, rsvpCounts, rsvpOf } from './utils';
 import type { Player, SessionPlayer } from '../types';
 
 describe('opggUrl', () => {
@@ -30,6 +30,30 @@ const team: Player[] = [
   { id: 'p2', name: 'Chovy', createdAt: '' },
 ];
 const sp = (patch: Partial<SessionPlayer>): SessionPlayer => ({ name: 'x', role: 'MID', champions: [], ...patch });
+
+describe('rsvpOf / rsvpCounts', () => {
+  const players = [sp({ playerId: 'p1', name: 'Faker', role: 'MID' }), sp({ name: 'Chovy', role: 'TOP' })];
+
+  it('legge la risposta per id, anche per sessioni vecchie collegate per nome', () => {
+    const session = { players, rsvp: { p1: 'yes', p2: 'maybe' } as const };
+    expect(rsvpOf(session, players[0], team)).toBe('yes');
+    expect(rsvpOf(session, players[1], team)).toBe('maybe');
+  });
+
+  it('conta risposte e in attesa', () => {
+    expect(rsvpCounts({ players, rsvp: { p1: 'no' } }, team)).toEqual({ yes: 0, maybe: 0, no: 1, pending: 1 });
+  });
+
+  it('senza rsvp sono tutti in attesa', () => {
+    expect(rsvpCounts({ players }, team)).toEqual({ yes: 0, maybe: 0, no: 0, pending: 2 });
+  });
+
+  it('ignora i giocatori non più nel roster', () => {
+    const gone = [...players, sp({ name: 'Sconosciuto', role: 'ADC' })];
+    expect(rsvpCounts({ players: gone }, team).pending).toBe(2);
+    expect(rsvpOf({ rsvp: { p1: 'yes' } }, gone[2], team)).toBeUndefined();
+  });
+});
 
 describe('findTeamPlayer / resolveSessionPlayer', () => {
   it('trova per id anche se il giocatore è stato rinominato', () => {

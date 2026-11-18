@@ -2,9 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { FieldValue } = require('firebase-admin/firestore');
+const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
-const { parseRiotFields, validateSession, sessionFields } = require('./validation');
+const { parseRiotFields, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,6 +79,17 @@ app.put('/api/sessions/:id', async (req, res) => {
   const data = { ...sessionFields(req.body), updatedAt: new Date().toISOString() };
   await sessionsRef.doc(req.params.id).update(data);
   res.json({ id: req.params.id, ...data });
+});
+
+// Risposta di disponibilità di un giocatore (rsvp.<playerId>); non tocca gli altri campi della sessione
+app.put('/api/sessions/:id/rsvp', async (req, res) => {
+  const parsed = parseRsvp(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const ref = sessionsRef.doc(req.params.id);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Not found' });
+  await ref.update(new FieldPath('rsvp', parsed.playerId), parsed.status ?? FieldValue.delete());
+  res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status });
 });
 
 app.delete('/api/sessions/:id', async (req, res) => {

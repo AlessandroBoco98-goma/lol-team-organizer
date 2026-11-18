@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRiotFields, validateSession, sessionFields } = require('./validation');
+const { parseRiotFields, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const champ = { id: 'Ahri', name: 'Ahri' };
 const basePlayer = { name: 'Faker', role: 'MID', champions: [champ] };
@@ -41,6 +41,31 @@ test('validateSession: rifiuta Riot ID non valido, ruoli duplicati e troppi camp
   assert.ok(validateSession(baseSession([{ ...basePlayer, riotId: 'Faker', region: 'KR' }])));
   assert.equal(validateSession(baseSession([basePlayer, { ...basePlayer, name: 'Altro' }])), 'Ruoli duplicati');
   assert.ok(validateSession(baseSession([{ ...basePlayer, champions: [champ, champ, champ, champ] }])));
+});
+
+test('parseRsvp: accetta gli stati validi', () => {
+  for (const status of ['yes', 'maybe', 'no']) {
+    assert.deepEqual(parseRsvp({ playerId: 'p1', status }), { playerId: 'p1', status });
+  }
+});
+
+test('parseRsvp: status vuoto o null annulla la risposta', () => {
+  assert.deepEqual(parseRsvp({ playerId: 'p1', status: null }), { playerId: 'p1', status: null });
+  assert.deepEqual(parseRsvp({ playerId: 'p1', status: '' }), { playerId: 'p1', status: null });
+  assert.deepEqual(parseRsvp({ playerId: 'p1' }), { playerId: 'p1', status: null });
+});
+
+test('parseRsvp: rifiuta stato o giocatore non validi', () => {
+  assert.ok(parseRsvp({ playerId: 'p1', status: 'forse' }).error);
+  assert.ok(parseRsvp({ playerId: '  ', status: 'yes' }).error);
+  assert.ok(parseRsvp({ status: 'yes' }).error);
+  assert.ok(parseRsvp({ playerId: 123, status: 'yes' }).error);
+  assert.ok(parseRsvp(undefined).error);
+});
+
+test('sessionFields: non include rsvp (si modifica solo dall\'endpoint dedicato)', () => {
+  const fields = sessionFields({ ...baseSession([basePlayer]), rsvp: { p1: 'yes' } });
+  assert.equal('rsvp' in fields, false);
 });
 
 test('sessionFields: salva i campi opzionali solo se presenti', () => {

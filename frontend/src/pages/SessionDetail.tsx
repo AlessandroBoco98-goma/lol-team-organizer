@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getSession, deleteSession, getPlayers } from "../lib/api";
-import { ROLE_COLORS, ROLE_LABELS } from "../types";
+import { ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS } from "../types";
 import { championIcon } from "../lib/ddragon";
-import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer } from "../lib/utils";
+import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer, rsvpOf } from "../lib/utils";
 import { btnPrimary, btnGhost, btnDanger, panel, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
+import RsvpPanel from "../components/RsvpPanel";
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -58,11 +59,14 @@ export default function SessionDetail() {
         <p className="text-lol-text/70">Ore {formatTime(session.time)}</p>
       </section>
 
+      <RsvpPanel session={session} teamPlayers={teamPlayers} past={past} />
+
       <section className="space-y-4">
         <h2 className="font-display text-lg uppercase tracking-widest text-lol-gold">Composizione team</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {session.players.map((raw, i) => {
             const p = resolveSessionPlayer(raw, teamPlayers);
+            const status = rsvpOf(session, raw, teamPlayers);
             return (
             <div
               key={i}
@@ -79,6 +83,11 @@ export default function SessionDetail() {
               >
                 {ROLE_LABELS[p.role]}
               </p>
+              {status && (
+                <p className="mb-3 text-xs font-medium" style={{ color: RSVP_COLORS[status] }}>
+                  {RSVP_LABELS[status]}
+                </p>
+              )}
               <div className="flex flex-wrap gap-3">
                 {p.champions.map((c) => (
                   <div key={c.id} className="flex w-16 flex-col items-center gap-1">

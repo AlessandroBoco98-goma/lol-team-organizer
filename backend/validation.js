@@ -52,4 +52,26 @@ function sessionFields(body) {
   };
 }
 
-module.exports = { MAX_CHAMPIONS, RIOT_ID_REGEX, REGIONS, parseRiotFields, validateSession, sessionFields };
+const RSVP_STATUSES = ['yes', 'maybe', 'no'];
+
+// Valida il body di una risposta RSVP: { playerId, status } con status null/'' per annullare la risposta.
+// Ritorna { error } oppure { playerId, status } (status null = rimuovi)
+function parseRsvp(body) {
+  const playerId = typeof body?.playerId === 'string' ? body.playerId.trim() : '';
+  if (!playerId || playerId.length > 128) return { error: 'Giocatore mancante' };
+  const raw = body.status;
+  if (raw === null || raw === undefined || raw === '') return { playerId, status: null };
+  if (!RSVP_STATUSES.includes(raw)) return { error: 'Stato RSVP non valido' };
+  return { playerId, status: raw };
+}
+
+module.exports = {
+  MAX_CHAMPIONS,
+  RIOT_ID_REGEX,
+  REGIONS,
+  RSVP_STATUSES,
+  parseRiotFields,
+  parseRsvp,
+  validateSession,
+  sessionFields,
+};

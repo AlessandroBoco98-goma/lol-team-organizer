@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { getSessions, deleteSession, getPlayers } from "../lib/api";
-import { ROLE_COLORS, ROLE_LABELS } from "../types";
+import { ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES } from "../types";
 import { championIcon } from "../lib/ddragon";
-import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer } from "../lib/utils";
+import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer, rsvpCounts } from "../lib/utils";
 import { btnPrimary, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 
@@ -100,6 +100,17 @@ export default function Dashboard() {
                   })}
                   {s.players.length === 0 && <li className="text-sm text-lol-text/50">Nessun giocatore</li>}
                 </ul>
+
+                {!past && s.players.length > 0 && (
+                  <p className="flex flex-wrap gap-3 px-5 pb-3 text-xs">
+                    {RSVP_STATUSES.map((st) => (
+                      <span key={st} style={{ color: RSVP_COLORS[st] }}>
+                        {rsvpCounts(s, teamPlayers)[st]} {RSVP_LABELS[st].toLowerCase()}
+                      </span>
+                    ))}
+                    <span className="text-lol-text/50">{rsvpCounts(s, teamPlayers).pending} in attesa</span>
+                  </p>
+                )}
 
                 {s.notes && <p className="px-5 pb-3 text-sm italic text-lol-text/60 line-clamp-2">{s.notes}</p>}
 

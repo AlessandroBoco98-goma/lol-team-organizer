@@ -50,12 +50,30 @@ export interface SessionPlayer {
   region?: Region;
 }
 
+export type RsvpStatus = 'yes' | 'maybe' | 'no';
+
+export const RSVP_STATUSES: RsvpStatus[] = ['yes', 'maybe', 'no'];
+
+export const RSVP_LABELS: Record<RsvpStatus, string> = {
+  yes: 'Ci sono',
+  maybe: 'Forse',
+  no: 'Non ci sono',
+};
+
+export const RSVP_COLORS: Record<RsvpStatus, string> = {
+  yes: '#4fbf66',
+  maybe: '#f2a93b',
+  no: '#e84057',
+};
+
 export interface Session {
   id: string;
   date: string;
   time: string;
   players: SessionPlayer[];
   notes: string;
+  // Disponibilità per id del giocatore nel roster; opzionale, assente nelle sessioni vecchie
+  rsvp?: Record<string, RsvpStatus>;
   createdAt: string;
   updatedAt?: string;
 }

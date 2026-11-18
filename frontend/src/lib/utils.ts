@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ROLE_LABELS, type Player, type Session, type SessionPlayer } from '../types';
+import { ROLE_LABELS, type Player, type RsvpStatus, type Session, type SessionPlayer } from '../types';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -43,6 +43,31 @@ export function resolveSessionPlayer(sp: SessionPlayer, team: Player[]): Session
   if (!t) return sp;
   const { riotId: _riotId, region: _region, ...rest } = sp;
   return { ...rest, playerId: t.id, name: t.name, ...(t.riotId && t.region ? { riotId: t.riotId, region: t.region } : {}) };
+}
+
+export interface RsvpCounts {
+  yes: number;
+  maybe: number;
+  no: number;
+  pending: number;
+}
+
+// Risposta di un giocatore di sessione; undefined se non ha ancora risposto o non è nel roster
+export function rsvpOf(session: Pick<Session, 'rsvp'>, sp: SessionPlayer, team: Player[]): RsvpStatus | undefined {
+  const id = resolveSessionPlayer(sp, team).playerId;
+  return id ? session.rsvp?.[id] : undefined;
+}
+
+// Conteggio delle risposte; i giocatori non più nel roster non possono rispondere e non sono contati
+export function rsvpCounts(session: Pick<Session, 'players' | 'rsvp'>, team: Player[]): RsvpCounts {
+  const counts: RsvpCounts = { yes: 0, maybe: 0, no: 0, pending: 0 };
+  for (const sp of session.players) {
+    if (!resolveSessionPlayer(sp, team).playerId) continue;
+    const status = rsvpOf(session, sp, team);
+    if (status) counts[status] += 1;
+    else counts.pending += 1;
+  }
+  return counts;
 }
 
 // URL del profilo op.gg per un Riot ID "Nome#TAG"; null se mancano dati o il formato non è valido
