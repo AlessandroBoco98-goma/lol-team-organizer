@@ -5,6 +5,7 @@ import { REGIONS, RIOT_ID_REGEX, type Player, type Region } from "../types";
 import { normalizePhone } from "../lib/utils";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
+import RiotStatsButton from "../components/RiotStatsButton";
 import { MessageCircle, Pencil, Trash2, Users } from "lucide-react";
 import { btnPrimary, btnGhost, panel, input, label, pageTitle, sectionTitle } from "../lib/styles";
 
@@ -214,6 +215,7 @@ export default function Players() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <OpggButton riotId={player.riotId} region={player.region} />
+                <RiotStatsButton playerId={player.id} name={player.name} riotId={player.riotId} region={player.region} />
                 {(player.phone || player.hasPhone) && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-lol-teal/40 bg-lol-teal/10 px-2.5 py-0.5 text-[11px] text-lol-teal">
                     <MessageCircle size={11} aria-hidden /> WhatsApp

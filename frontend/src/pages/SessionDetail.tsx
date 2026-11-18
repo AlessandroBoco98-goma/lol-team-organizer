@@ -22,6 +22,7 @@ import {
 import { btnPrimary, btnGhost, btnDanger, panel, pageTitle, sectionTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
+import RiotStatsButton from "../components/RiotStatsButton";
 import RsvpPanel from "../components/RsvpPanel";
 import RsvpBar from "../components/RsvpBar";
 import DraftPanel from "../components/DraftPanel";
@@ -168,7 +169,10 @@ export default function SessionDetail() {
                       {ROLE_LABELS[p.role]}
                     </p>
                   </div>
-                  <OpggButton riotId={p.riotId} region={p.region} />
+                  <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                    <RiotStatsButton playerId={p.playerId} name={p.name} riotId={p.riotId} region={p.region} />
+                    <OpggButton riotId={p.riotId} region={p.region} />
+                  </div>
                 </div>
 
                 {status && (

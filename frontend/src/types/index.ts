@@ -54,6 +54,52 @@ export interface SessionPlayer {
   region?: Region;
 }
 
+// Statistiche dalla Riot API (calcolate dal backend)
+export interface RiotRank {
+  queue: 'solo' | 'flex';
+  tier: string;
+  rank: string;
+  lp: number;
+  wins: number;
+  losses: number;
+}
+
+export interface RiotMatch {
+  matchId: string;
+  championId: string;
+  win: boolean;
+  kills: number;
+  deaths: number;
+  assists: number;
+  items: number[];
+  keystone: number | null;
+  role: string;
+  cs: number;
+  durationSec: number;
+  endedAt: number;
+}
+
+export interface RiotChampionStat {
+  championId: string;
+  games: number;
+  wins: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  topItems: number[];
+  keystone: number | null;
+}
+
+export interface RiotProfile {
+  riotId: string;
+  region: string;
+  ranks: RiotRank[];
+  recent: RiotMatch[];
+  champions: RiotChampionStat[];
+  gamesAnalyzed: number;
+  updatedAt: string;
+}
+
 export const MAX_BANS = 5;
 export const MAX_ENEMY_PICKS = 5;
 export const MAX_DRAFT_NOTES = 2000;

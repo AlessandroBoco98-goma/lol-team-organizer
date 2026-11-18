@@ -4,6 +4,7 @@ const cors = require('cors');
 const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
+const { createRiotService } = require('./riot');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const app = express();
@@ -162,6 +163,28 @@ app.put('/api/players/:id', async (req, res) => {
 app.delete('/api/players/:id', async (req, res) => {
   await playersRef.doc(req.params.id).delete();
   res.status(204).send();
+});
+
+// Statistiche Riot di un giocatore (rank, ultime partite, build abituali).
+// La chiave Riot resta qui sul server; l'endpoint richiede la password del team per non consumare il limite di richieste.
+const riot = process.env.RIOT_API_KEY ? createRiotService({ apiKey: process.env.RIOT_API_KEY }) : null;
+
+app.get('/api/players/:id/riot', async (req, res) => {
+  if (!TEAM_PASSWORD || req.get('x-team-password') !== TEAM_PASSWORD) {
+    return res.status(401).json({ error: 'Password del team richiesta' });
+  }
+  if (!riot) return res.status(503).json({ error: 'Statistiche Riot non configurate sul server (manca RIOT_API_KEY)' });
+  const doc = await playersRef.doc(req.params.id).get();
+  if (!doc.exists) return res.status(404).json({ error: 'Not found' });
+  const { riotId, region } = doc.data();
+  if (!riotId || !region) return res.status(400).json({ error: 'Imposta Riot ID e regione del giocatore' });
+  try {
+    res.json(await riot.getProfile(riotId, region));
+  } catch (error) {
+    if (typeof error?.status !== 'number') throw error;
+    if (error.retryAfter) res.set('Retry-After', String(error.retryAfter));
+    res.status(error.status).json({ error: error.message, ...(error.retryAfter ? { retryAfter: error.retryAfter } : {}) });
+  }
 });
 
 // Champions

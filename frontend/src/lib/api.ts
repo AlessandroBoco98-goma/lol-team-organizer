@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, Champion, Draft, Player, Region, RsvpStatus } from '../types';
+import type { Session, SessionPlayer, Champion, Draft, Player, Region, RiotProfile, RsvpStatus } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -104,6 +104,17 @@ export const updatePlayer = async (id: string, playerData: PlayerInput): Promise
 export const deletePlayer = async (id: string): Promise<void> => {
   await api.delete(`/api/players/${id}`);
 };
+
+// Statistiche Riot di un giocatore: il backend richiede la password del team e può rispondere 503 se manca la chiave Riot
+export const getPlayerRiot = async (playerId: string): Promise<RiotProfile> => {
+  const response = await api.get(`/api/players/${playerId}/riot`);
+  return response.data;
+};
+
+// Messaggio d'errore leggibile da una risposta del backend
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  return (error as AxiosError<{ error?: string }>)?.response?.data?.error ?? fallback;
+}
 
 // Champions API
 export const getChampions = async (version?: string, locale?: string): Promise<Champion[]> => {
