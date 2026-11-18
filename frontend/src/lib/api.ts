@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, Champion, Player, Region, RsvpStatus } from '../types';
+import type { Session, SessionPlayer, Champion, Draft, Player, Region, RsvpStatus } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -71,6 +71,11 @@ export const updateSession = async (id: string, sessionData: SessionInput): Prom
 // status null annulla la risposta del giocatore
 export const setRsvp = async (sessionId: string, playerId: string, status: RsvpStatus | null): Promise<void> => {
   await api.put(`/api/sessions/${sessionId}/rsvp`, { playerId, status });
+};
+
+export const setDraft = async (sessionId: string, draft: Draft): Promise<Draft> => {
+  const response = await api.put(`/api/sessions/${sessionId}/draft`, draft);
+  return response.data.draft;
 };
 
 export const deleteSession = async (id: string): Promise<void> => {

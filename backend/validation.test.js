@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseRiotFields, parsePhone, parseRsvp, validateSession, sessionFields } = require('./validation');
+const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const champ = { id: 'Ahri', name: 'Ahri' };
 const basePlayer = { name: 'Faker', role: 'MID', champions: [champ] };
@@ -59,6 +59,31 @@ test('parsePhone: rifiuta numeri senza prefisso internazionale o malformati', ()
   for (const phone of ['3331234567', '+39', '+0393331234567', '+39abc1234567', '+39 333 12345678901234567']) {
     assert.ok(parsePhone({ phone }).error, `dovrebbe rifiutare ${phone}`);
   }
+});
+
+const c = (id) => ({ id, name: id });
+
+test('parseDraft: un draft vuoto è valido e viene normalizzato', () => {
+  assert.deepEqual(parseDraft({}).draft, { allyBans: [], enemyBans: [], enemyPicks: [], notes: '' });
+  assert.deepEqual(parseDraft({ notes: '  jungle invade  ' }).draft.notes, 'jungle invade');
+});
+
+test('parseDraft: salva solo id e nome dei campioni', () => {
+  const { draft } = parseDraft({ allyBans: [{ id: 'Ahri', name: 'Ahri', extra: 1 }], enemyPicks: [c('Zed')] });
+  assert.deepEqual(draft.allyBans, [c('Ahri')]);
+  assert.deepEqual(draft.enemyPicks, [c('Zed')]);
+});
+
+test('parseDraft: rispetta i limiti e rifiuta duplicati e dati non validi', () => {
+  const six = ['a', 'b', 'c', 'd', 'e', 'f'].map(c);
+  assert.ok(parseDraft({ allyBans: six }).error);
+  assert.ok(parseDraft({ enemyBans: six }).error);
+  assert.ok(parseDraft({ enemyPicks: six }).error);
+  assert.ok(parseDraft({ allyBans: [c('a'), c('a')] }).error);
+  assert.ok(parseDraft({ allyBans: [{ id: 1, name: 'x' }] }).error);
+  assert.ok(parseDraft({ allyBans: 'Ahri' }).error);
+  assert.ok(parseDraft({ notes: 'x'.repeat(2001) }).error);
+  assert.equal(parseDraft({ allyBans: six.slice(0, 5) }).error, undefined);
 });
 
 test('parseRsvp: accetta gli stati validi', () => {

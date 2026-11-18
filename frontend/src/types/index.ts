@@ -54,6 +54,18 @@ export interface SessionPlayer {
   region?: Region;
 }
 
+export const MAX_BANS = 5;
+export const MAX_ENEMY_PICKS = 5;
+export const MAX_DRAFT_NOTES = 2000;
+
+// Draft di una sessione: ban nostri e nemici, pick dell'avversario e note sugli avversari
+export interface Draft {
+  allyBans: ChampionPick[];
+  enemyBans: ChampionPick[];
+  enemyPicks: ChampionPick[];
+  notes: string;
+}
+
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 
 export const RSVP_STATUSES: RsvpStatus[] = ['yes', 'maybe', 'no'];
@@ -78,6 +90,8 @@ export interface Session {
   notes: string;
   // Disponibilità per id del giocatore nel roster; opzionale, assente nelle sessioni vecchie
   rsvp?: Record<string, RsvpStatus>;
+  // Ban, pick nemici e note; opzionale, assente nelle sessioni vecchie
+  draft?: Draft;
   createdAt: string;
   updatedAt?: string;
 }
@@ -87,4 +101,7 @@ export interface Champion {
   name: string;
   key: string;
   image: string;
+  // Da Data Dragon: classi (Fighter, Mage, Tank...) e punteggi 0-10 di attacco, difesa, magia, difficoltà
+  tags?: string[];
+  info?: { attack: number; defense: number; magic: number; difficulty: number } | null;
 }

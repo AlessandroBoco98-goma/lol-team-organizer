@@ -64,6 +64,37 @@ function parsePhone(source) {
   return { phone };
 }
 
+const MAX_BANS = 5;
+const MAX_ENEMY_PICKS = 5;
+const MAX_DRAFT_NOTES = 2000;
+
+// Lista di campioni { id, name }: senza duplicati e con un massimo; ritorna { error } oppure { list }
+function parseChampionList(value, max, label) {
+  if (value === undefined || value === null) return { list: [] };
+  if (!Array.isArray(value)) return { error: `${label} non valido` };
+  if (value.length > max) return { error: `${label}: massimo ${max}` };
+  const list = [];
+  for (const c of value) {
+    if (typeof c?.id !== 'string' || typeof c?.name !== 'string' || !c.id) return { error: `${label}: campione non valido` };
+    if (list.some((x) => x.id === c.id)) return { error: `${label}: campione duplicato` };
+    list.push({ id: c.id, name: c.name });
+  }
+  return { list };
+}
+
+// Draft di una sessione: ban nostri e nemici, pick nemici e note sugli avversari. Ritorna { error } oppure { draft }
+function parseDraft(body) {
+  const allyBans = parseChampionList(body?.allyBans, MAX_BANS, 'Ban nostri');
+  if (allyBans.error) return { error: allyBans.error };
+  const enemyBans = parseChampionList(body?.enemyBans, MAX_BANS, 'Ban nemici');
+  if (enemyBans.error) return { error: enemyBans.error };
+  const enemyPicks = parseChampionList(body?.enemyPicks, MAX_ENEMY_PICKS, 'Pick nemici');
+  if (enemyPicks.error) return { error: enemyPicks.error };
+  const notes = typeof body?.notes === 'string' ? body.notes.trim() : '';
+  if (notes.length > MAX_DRAFT_NOTES) return { error: `Note: massimo ${MAX_DRAFT_NOTES} caratteri` };
+  return { draft: { allyBans: allyBans.list, enemyBans: enemyBans.list, enemyPicks: enemyPicks.list, notes } };
+}
+
 const RSVP_STATUSES = ['yes', 'maybe', 'no'];
 
 // Valida il body di una risposta RSVP: { playerId, status } con status null/'' per annullare la risposta.
@@ -84,6 +115,7 @@ module.exports = {
   RSVP_STATUSES,
   parseRiotFields,
   parsePhone,
+  parseDraft,
   parseRsvp,
   validateSession,
   sessionFields,

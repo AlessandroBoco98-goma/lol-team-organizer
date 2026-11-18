@@ -4,7 +4,7 @@ const cors = require('cors');
 const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
-const { parseRiotFields, parsePhone, parseRsvp, validateSession, sessionFields } = require('./validation');
+const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,6 +39,8 @@ const DDragon = {
       id: key,
       name: champ.name,
       key: champ.key,
+      tags: champ.tags || [],
+      info: champ.info || null,
       image: `${this.baseUrl}/cdn/${v}/img/champion/${key}.png`,
     }));
   },
@@ -90,6 +92,17 @@ app.put('/api/sessions/:id/rsvp', async (req, res) => {
   if (!doc.exists) return res.status(404).json({ error: 'Not found' });
   await ref.update(new FieldPath('rsvp', parsed.playerId), parsed.status ?? FieldValue.delete());
   res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status });
+});
+
+// Draft (ban, pick nemici, note): si salva a parte per non toccare la composizione né le risposte
+app.put('/api/sessions/:id/draft', async (req, res) => {
+  const parsed = parseDraft(req.body);
+  if (parsed.error) return res.status(400).json({ error: parsed.error });
+  const ref = sessionsRef.doc(req.params.id);
+  const doc = await ref.get();
+  if (!doc.exists) return res.status(404).json({ error: 'Not found' });
+  await ref.update({ draft: parsed.draft });
+  res.json({ id: req.params.id, draft: parsed.draft });
 });
 
 app.delete('/api/sessions/:id', async (req, res) => {

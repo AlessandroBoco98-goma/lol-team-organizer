@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getSession, deleteSession, getPlayers, updateSession } from "../lib/api";
+import { getSession, deleteSession, getPlayers, updateSession, getChampions } from "../lib/api";
+import { blockReason, BLOCK_LABELS } from "../lib/composition";
 import { ROLES, ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS, type SessionPlayer } from "../types";
 import { championIcon } from "../lib/ddragon";
 import { formatDate, formatTime, isPastSession, googleCalendarUrl, resolveSessionPlayer, rsvpOf, rsvpCounts, playersFromRsvp, whatsappShareUrl } from "../lib/utils";
@@ -8,6 +9,7 @@ import { btnPrimary, btnGhost, btnDanger, panel, pageTitle } from "../lib/styles
 import LoadingSpinner from "../components/LoadingSpinner";
 import OpggButton from "../components/OpggButton";
 import RsvpPanel from "../components/RsvpPanel";
+import DraftPanel from "../components/DraftPanel";
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -22,6 +24,11 @@ export default function SessionDetail() {
 
   // Il roster aggiorna nome, Riot ID e regione; se non carica restano i dati salvati nella sessione
   const { data: teamPlayers = [] } = useQuery({ queryKey: ["players"], queryFn: getPlayers });
+
+  const { data: champions = [] } = useQuery({
+    queryKey: ["champions"],
+    queryFn: () => getChampions(undefined, "it_IT"),
+  });
 
   const composeMutation = useMutation({
     mutationFn: (players: SessionPlayer[]) =>
@@ -128,12 +135,22 @@ export default function SessionDetail() {
                 </p>
               )}
               <div className="flex flex-wrap gap-3">
-                {p.champions.map((c) => (
-                  <div key={c.id} className="flex w-16 flex-col items-center gap-1">
-                    <img src={championIcon(c.id)} alt={c.name} className="h-14 w-14 rounded-md border border-lol-gold-dark" />
-                    <span className="text-center text-[11px] leading-tight text-lol-text/70">{c.name}</span>
-                  </div>
-                ))}
+                {p.champions.map((c) => {
+                  const blocked = blockReason(c.id, session.draft);
+                  return (
+                    <div
+                      key={c.id}
+                      className={`flex w-16 flex-col items-center gap-1 ${blocked ? "opacity-40" : ""}`}
+                      title={blocked ? BLOCK_LABELS[blocked] : c.name}
+                    >
+                      <img src={championIcon(c.id)} alt={c.name} className="h-14 w-14 rounded-md border border-lol-gold-dark" />
+                      <span className={`text-center text-[11px] leading-tight text-lol-text/70 ${blocked ? "line-through" : ""}`}>
+                        {c.name}
+                      </span>
+                      {blocked && <span className="text-center text-[9px] leading-tight text-red-400">{BLOCK_LABELS[blocked]}</span>}
+                    </div>
+                  );
+                })}
                 {p.champions.length === 0 && <span className="text-sm text-lol-text/40">Nessun campione</span>}
               </div>
             </div>
@@ -141,6 +158,15 @@ export default function SessionDetail() {
           })}
         </div>
       </section>
+
+      {champions.length > 0 && (
+        <DraftPanel
+          key={JSON.stringify(session.draft ?? null)}
+          session={session}
+          players={session.players.map((p) => resolveSessionPlayer(p, teamPlayers))}
+          champions={champions}
+        />
+      )}
 
       {session.notes && (
         <section className={panel}>
