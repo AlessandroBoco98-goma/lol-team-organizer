@@ -98,10 +98,20 @@ test('parseDraft: rispetta i limiti e rifiuta duplicati e dati non validi', () =
   assert.equal(parseDraft({ allyBans: six.slice(0, 5) }).error, undefined);
 });
 
-test('parseRsvp: accetta gli stati validi', () => {
-  for (const status of ['yes', 'maybe', 'no']) {
-    assert.deepEqual(parseRsvp({ playerId: 'p1', status }), { playerId: 'p1', status });
-  }
+test('parseRsvp: accetta gli stati validi ("yes" con il ruolo)', () => {
+  assert.deepEqual(parseRsvp({ playerId: 'p1', status: 'maybe' }), { playerId: 'p1', status: 'maybe' });
+  assert.deepEqual(parseRsvp({ playerId: 'p1', status: 'no' }), { playerId: 'p1', status: 'no' });
+  assert.deepEqual(parseRsvp({ playerId: 'p1', status: 'yes', role: 'ADC' }), { playerId: 'p1', status: 'yes', role: 'ADC' });
+});
+
+test('parseRsvp: chi dice "yes" deve scegliere un ruolo valido', () => {
+  assert.ok(parseRsvp({ playerId: 'p1', status: 'yes' }).error);
+  assert.ok(parseRsvp({ playerId: 'p1', status: 'yes', role: 'MIDDLE' }).error);
+  assert.ok(parseRsvp({ playerId: 'p1', status: 'yes', role: '' }).error);
+});
+
+test('parseRsvp: "maybe" e "no" ignorano un eventuale ruolo', () => {
+  assert.deepEqual(parseRsvp({ playerId: 'p1', status: 'maybe', role: 'TOP' }), { playerId: 'p1', status: 'maybe' });
 });
 
 test('parseRsvp: status vuoto o null annulla la risposta', () => {

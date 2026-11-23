@@ -178,6 +178,26 @@ export function lobbySlots(session: Pick<Session, 'players' | 'rsvp'>, team: Pla
   );
 }
 
+// Ruoli già scelti in una sessione, con il nome di chi li ha: voti "Ci sono" con ruolo e giocatori già in squadra.
+// `exceptPlayerId` esclude un giocatore (il proprio ruolo resta scegliibile).
+export function takenRoles(
+  session: Pick<Session, 'players' | 'rsvp' | 'voteRoles'>,
+  team: Player[],
+  exceptPlayerId?: string,
+): Partial<Record<Role, string>> {
+  const taken: Partial<Record<Role, string>> = {};
+  for (const [id, role] of Object.entries(session.voteRoles ?? {})) {
+    if (id === exceptPlayerId || session.rsvp?.[id] !== 'yes') continue;
+    taken[role] = team.find((p) => p.id === id)?.name ?? 'un altro giocatore';
+  }
+  for (const p of session.players) {
+    const id = resolveSessionPlayer(p, team).playerId ?? p.playerId;
+    if (id === exceptPlayerId || taken[p.role]) continue;
+    taken[p.role] = p.name;
+  }
+  return taken;
+}
+
 // Primo ruolo ancora libero
 export function nextFreeRole(players: Pick<SessionPlayer, 'role'>[]): Role {
   const used = players.map((p) => p.role);

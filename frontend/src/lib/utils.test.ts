@@ -6,6 +6,7 @@ import {
   dateBadge,
   findTeamPlayer,
   isProposal,
+  takenRoles,
   votingSessions,
   weekdayName,
   voteInviteUrl,
@@ -140,6 +141,33 @@ describe('isProposal / votingSessions', () => {
   it('esclude i giorni già passati', () => {
     const list = [s({ id: 'old', date: '2026-11-29', source: 'weekly', status: 'proposal' }), s({ id: 'ok', source: 'weekly', status: 'proposal' })];
     expect(votingSessions(list, now).map((x) => x.id)).toEqual(['ok']);
+  });
+});
+
+describe('takenRoles', () => {
+  const roster: Player[] = [
+    { id: 'p1', name: 'Faker', createdAt: '' },
+    { id: 'p2', name: 'Chovy', createdAt: '' },
+  ];
+
+  it('elenca i ruoli scelti votando "Ci sono", con il nome di chi li ha', () => {
+    const t = takenRoles({ players: [], rsvp: { p1: 'yes', p2: 'yes' }, voteRoles: { p1: 'MID', p2: 'TOP' } }, roster);
+    expect(t).toEqual({ MID: 'Faker', TOP: 'Chovy' });
+  });
+
+  it('chi non ha più "Ci sono" libera il ruolo', () => {
+    const t = takenRoles({ players: [], rsvp: { p1: 'maybe' }, voteRoles: { p1: 'MID' } }, roster);
+    expect(t).toEqual({});
+  });
+
+  it('conta anche i giocatori già in squadra', () => {
+    const players: SessionPlayer[] = [{ playerId: 'p2', name: 'Chovy', role: 'JUNGLE', champions: [] }];
+    expect(takenRoles({ players, rsvp: {} }, roster)).toEqual({ JUNGLE: 'Chovy' });
+  });
+
+  it('il proprio ruolo non è occupato per sé', () => {
+    const t = takenRoles({ players: [], rsvp: { p1: 'yes', p2: 'yes' }, voteRoles: { p1: 'MID', p2: 'TOP' } }, roster, 'p1');
+    expect(t).toEqual({ TOP: 'Chovy' });
   });
 });
 

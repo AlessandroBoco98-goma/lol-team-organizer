@@ -1,25 +1,54 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { ArrowRight, Check, Clock, MessageCircle, X } from "lucide-react";
 import { getPlayers, getSessions } from "../lib/api";
-import { CONFIRM_THRESHOLD, RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type RsvpStatus, type Session } from "../types";
-import { dateBadge, formatTime, rsvpCounts, voteInviteUrl, votingSessions, weekdayName } from "../lib/utils";
+import {
+  CONFIRM_THRESHOLD,
+  ROLE_COLORS,
+  ROLE_LABELS,
+  RSVP_COLORS,
+  RSVP_LABELS,
+  RSVP_STATUSES,
+  type Player,
+  type Role,
+  type RsvpStatus,
+  type Session,
+} from "../types";
+import { dateBadge, formatTime, rsvpCounts, takenRoles, voteInviteUrl, votingSessions, weekdayName } from "../lib/utils";
 import { useMe } from "../lib/me";
 import { useRsvpMutation } from "../lib/useRsvp";
 import { btnPrimary, input, label, pageTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
+import RolePicker from "../components/RolePicker";
 
 const ICONS: Record<RsvpStatus, typeof Check> = { yes: Check, maybe: Clock, no: X };
 
 // Un giorno da votare: quante conferme ha, chi ha detto sì e i pulsanti per votare
 function DayRow({ session, team, me }: { session: Session; team: Player[]; me: Player | undefined }) {
   const mutation = useRsvpMutation(session.id);
+  const [picking, setPicking] = useState(false);
   const counts = rsvpCounts(session, team);
   const confirmed = session.status !== "proposal";
   const missing = Math.max(0, CONFIRM_THRESHOLD - counts.yes);
   const current = me ? session.rsvp?.[me.id] : undefined;
-  const yesNames = team.filter((p) => session.rsvp?.[p.id] === "yes").map((p) => p.name);
+  const myRole = me ? session.voteRoles?.[me.id] : undefined;
+  const yesVoters = team.filter((p) => session.rsvp?.[p.id] === "yes");
+
+  // "Ci sono" apre la scelta del ruolo tra quelli liberi; gli altri voti partono subito
+  const vote = (status: RsvpStatus) => {
+    if (!me) return;
+    if (status === "yes" && current !== "yes") {
+      setPicking(true);
+      return;
+    }
+    setPicking(false);
+    mutation.mutate({ playerId: me.id, status: current === status ? null : status });
+  };
+
+  const pickRole = (role: Role) => {
+    if (me) mutation.mutate({ playerId: me.id, status: "yes", role }, { onSuccess: () => setPicking(false) });
+  };
   const badge = dateBadge(session.date);
   const edge = confirmed ? "#19d3c0" : "#c9a96a";
 
@@ -55,18 +84,28 @@ function DayRow({ session, team, me }: { session: Session; team: Player[]; me: P
           </p>
         </div>
 
-        <p className="text-sm text-lol-mist">
-          {yesNames.length > 0 ? (
-            <>
-              <span className="text-lol-text">{yesNames.join(", ")}</span>
-              {counts.maybe > 0 && <> · {counts.maybe} forse</>}
-            </>
-          ) : counts.maybe > 0 ? (
-            `${counts.maybe} forse, nessuna conferma`
-          ) : (
-            "Nessuna conferma"
-          )}
-        </p>
+        {yesVoters.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5">
+            {yesVoters.map((p) => {
+              const role = session.voteRoles?.[p.id];
+              const color = role ? ROLE_COLORS[role] : "#8f9bb0";
+              return (
+                <li
+                  key={p.id}
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs"
+                  style={{ backgroundColor: `${color}1f`, color: "#e9e4d6" }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} />
+                  {p.name}
+                  {role && <span style={{ color }}>{ROLE_LABELS[role]}</span>}
+                </li>
+              );
+            })}
+            {counts.maybe > 0 && <li className="py-0.5 text-xs text-lol-mist">{counts.maybe} forse</li>}
+          </ul>
+        ) : (
+          <p className="text-sm text-lol-mist">{counts.maybe > 0 ? `${counts.maybe} forse, nessuna conferma` : "Nessuna conferma"}</p>
+        )}
 
         {confirmed && (
           <Link to={`/session/${session.id}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-lol-gold transition hover:text-lol-gold-bright">
@@ -85,7 +124,7 @@ function DayRow({ session, team, me }: { session: Session; team: Player[]; me: P
               type="button"
               disabled={!me || mutation.isPending}
               title={me ? undefined : "Scegli prima chi sei"}
-              onClick={() => me && mutation.mutate({ playerId: me.id, status: active ? null : s })}
+              onClick={() => vote(s)}
               aria-pressed={active}
               className="chamfer inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40 [--c:9px]"
               style={{
@@ -95,10 +134,28 @@ function DayRow({ session, team, me }: { session: Session; team: Player[]; me: P
               }}
             >
               <Icon size={15} aria-hidden /> {RSVP_LABELS[s]}
+              {s === "yes" && active && myRole && <span className="text-xs font-medium opacity-80">· {ROLE_LABELS[myRole]}</span>}
             </button>
           );
         })}
+        {current === "yes" && !picking && (
+          <button type="button" onClick={() => setPicking(true)} className="self-center px-1 text-xs text-lol-mist underline-offset-2 transition hover:text-lol-text hover:underline">
+            Cambia ruolo
+          </button>
+        )}
       </div>
+
+      {picking && me && (
+        <div className="md:col-span-3">
+          <RolePicker
+            taken={takenRoles(session, team, me.id)}
+            current={myRole}
+            disabled={mutation.isPending}
+            onPick={pickRole}
+            onCancel={() => setPicking(false)}
+          />
+        </div>
+      )}
     </article>
   );
 }

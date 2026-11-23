@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatRank, kdaRatio, timeAgo, winRate } from './riot';
+import { formatDuration, formatRank, kdaRatio, recentForm, timeAgo, winRate } from './riot';
 
 describe('formatRank', () => {
   it('traduce la lega e aggiunge la divisione', () => {
@@ -28,6 +28,23 @@ describe('winRate / kdaRatio', () => {
     expect(kdaRatio(5, 2, 7)).toBe(6);
     expect(kdaRatio(4, 0, 6)).toBe(10);
     expect(kdaRatio(1, 3, 1)).toBe(0.67);
+  });
+});
+
+describe('recentForm', () => {
+  it('somma vittorie, sconfitte e KDA complessivo', () => {
+    const f = recentForm([
+      { win: true, kills: 5, deaths: 2, assists: 7 },
+      { win: false, kills: 1, deaths: 4, assists: 3 },
+      { win: true, kills: 6, deaths: 0, assists: 2 },
+    ]);
+    expect(f).toMatchObject({ games: 3, wins: 2, losses: 1 });
+    expect(f.results).toEqual([true, false, true]);
+    expect(f.kda).toBe(4); // (12 + 12) / 6
+  });
+
+  it('senza partite è tutto a zero', () => {
+    expect(recentForm([])).toEqual({ games: 0, wins: 0, losses: 0, kda: 0, results: [] });
   });
 });
 

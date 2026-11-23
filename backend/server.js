@@ -6,7 +6,7 @@ const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 const { createRiotService } = require('./riot');
-const { ROLES, planComposition } = require('./autofill');
+const { ROLES, planComposition, applyVote, roleTakenBy } = require('./autofill');
 const { WEEK_SESSION_TIME, nextWorkweekDates, planWeek, shouldConfirm, weekSessionId } = require('./weekly');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
@@ -78,30 +78,20 @@ function httpError(status, message) {
   return Object.assign(new Error(message), { httpStatus: status });
 }
 
-// Compila la squadra di una sessione con chi ha votato "Ci sono": ruolo abituale e campioni più giocati
-// letti dalle ultime partite Riot dell'account collegato (Riot ID e regione del giocatore).
-// Chi era già in sessione e ha votato sì resta com'è; chi non ha dati entra comunque, senza campioni.
-async function autofillSession(sessionId) {
-  const ref = sessionsRef.doc(sessionId);
-  const snap = await ref.get();
-  if (!snap.exists) throw httpError(404, 'Not found');
-  const session = snap.data();
+// Un giocatore del roster ha bisogno del profilo Riot se non è già in squadra nel ruolo votato con dei campioni
+function needsRiotProfile(voter, session) {
+  const entry = (session.players ?? []).find((p) => (p.playerId ? p.playerId === voter.id : p.name === voter.name));
+  const role = session.voteRoles?.[voter.id];
+  const settled = entry && entry.champions?.length > 0 && (!role || role === entry.role);
+  return !settled && !!riot && !!voter.riotId && !!voter.region;
+}
 
-  const rosterSnap = await playersRef.get();
-  const voters = rosterSnap.docs
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
-    .filter((p) => session.rsvp?.[p.id] === 'yes');
-  if (voters.length === 0) throw httpError(400, 'Nessuno ha ancora confermato');
-  if (voters.length > ROLES.length) {
-    throw httpError(400, `Hanno confermato in ${voters.length}: i ruoli sono ${ROLES.length}, scegli la squadra a mano da "Modifica"`);
-  }
-
-  // Un giocatore alla volta: ogni profilo fa una decina di chiamate e il limite di Riot è basso
+// Legge i profili Riot (ruoli e campioni più giocati dalle ultime partite dell'account collegato).
+// Un giocatore alla volta: ogni profilo fa una decina di chiamate e il limite di Riot è basso.
+async function fetchProfiles(voters, session) {
   const profiles = {};
-  const existingNames = new Set((session.players ?? []).map((p) => p.playerId ?? p.name));
   for (const voter of voters) {
-    const alreadyIn = existingNames.has(voter.id) || existingNames.has(voter.name);
-    if (alreadyIn || !riot || !voter.riotId || !voter.region) continue;
+    if (!needsRiotProfile(voter, session)) continue;
     try {
       profiles[voter.id] = await riot.getProfile(voter.riotId, voter.region);
     } catch (error) {
@@ -109,18 +99,84 @@ async function autofillSession(sessionId) {
       if (error.status === 429) break; // limite raggiunto: inutile insistere con gli altri
     }
   }
+  return profiles;
+}
 
+// Resoconto dell'ultima compilazione, salvato nella sessione: la pagina lo usa per spiegare perché mancano i campioni
+const fillReport = (withoutData) => ({ at: new Date().toISOString(), riotEnabled: !!riot, withoutData });
+
+// Compila la squadra di una sessione con chi ha votato "Ci sono": il ruolo è quello scelto al voto,
+// i campioni sono i più giocati in quel ruolo, letti dalle ultime partite Riot dell'account collegato
+// (Riot ID e regione del giocatore). Chi era già in squadra nello stesso ruolo resta com'è;
+// chi non ha dati entra comunque, senza campioni.
+async function autofillSession(sessionId) {
+  const ref = sessionsRef.doc(sessionId);
+  const first = await ref.get();
+  if (!first.exists) throw httpError(404, 'Not found');
+  const roster = (await playersRef.get()).docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+  const firstVoters = roster.filter((p) => first.data().rsvp?.[p.id] === 'yes');
+  if (firstVoters.length === 0) throw httpError(400, 'Nessuno ha ancora confermato');
+  if (firstVoters.length > ROLES.length) {
+    throw httpError(400, `Hanno confermato in ${firstVoters.length}: i ruoli sono ${ROLES.length}, scegli la squadra a mano da "Modifica"`);
+  }
+
+  // Le chiamate a Riot stanno fuori dalla transazione: sono lente e Firestore la ripeterebbe
+  const profiles = await fetchProfiles(firstVoters, first.data());
   const names = await championNames();
-  const { players, withoutData } = planComposition({
-    voters,
-    existing: session.players ?? [],
-    profiles,
-    nameOf: (id) => names[id] ?? id,
-  });
 
-  const normalized = sessionFields({ date: session.date, time: session.time, players, notes: session.notes }).players;
-  await ref.update({ players: normalized, updatedAt: new Date().toISOString(), autoFilledAt: new Date().toISOString() });
-  return { players: normalized, withoutData, riotEnabled: !!riot };
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const session = snap.data();
+    const voters = roster.filter((p) => session.rsvp?.[p.id] === 'yes'); // voti aggiornati a questo istante
+    if (voters.length > ROLES.length) throw httpError(400, 'Più di 5 giocatori hanno confermato: scegli la squadra a mano da "Modifica"');
+
+    const { players, withoutData } = planComposition({
+      voters,
+      voteRoles: session.voteRoles ?? {},
+      existing: session.players ?? [],
+      profiles,
+      nameOf: (id) => names[id] ?? id,
+    });
+    const normalized = sessionFields({ date: session.date, time: session.time, players, notes: session.notes }).players;
+    const report = fillReport(withoutData);
+    tx.update(ref, { players: normalized, updatedAt: report.at, autoFillReport: report });
+    return { players: normalized, withoutData, riotEnabled: report.riotEnabled };
+  });
+}
+
+// Dopo un voto su una sessione già confermata nata dalla votazione, aggiorna la squadra solo per quel giocatore:
+// entra (o cambia ruolo) con i campioni del suo ruolo, oppure esce se non dice più "Ci sono".
+// Le altre sessioni (create a mano) non vengono toccate dai voti.
+async function applyVoteToSession(sessionId, playerId) {
+  const ref = sessionsRef.doc(sessionId);
+  const first = await ref.get();
+  const data = first.exists ? first.data() : null;
+  if (!data || data.status !== 'confirmed' || data.source !== 'weekly') return;
+
+  const playerDoc = await playersRef.doc(playerId).get();
+  if (!playerDoc.exists) return;
+  const voter = { id: playerDoc.id, ...playerDoc.data() };
+  const profiles = data.rsvp?.[playerId] === 'yes' ? await fetchProfiles([voter], data) : {};
+  const names = await championNames();
+
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const session = snap.data();
+    const isYes = session.rsvp?.[playerId] === 'yes';
+    const { players, withoutData } = applyVote({
+      existing: session.players ?? [],
+      voter,
+      isYes,
+      role: session.voteRoles?.[playerId],
+      profile: profiles[playerId],
+      nameOf: (id) => names[id] ?? id,
+    });
+    const normalized = sessionFields({ date: session.date, time: session.time, players, notes: session.notes }).players;
+    const previous = session.autoFillReport?.withoutData ?? [];
+    const merged = [...previous.filter((n) => n !== voter.name), ...withoutData];
+    tx.update(ref, { players: normalized, updatedAt: new Date().toISOString(), autoFillReport: fillReport(merged) });
+  });
 }
 
 // API Routes
@@ -201,8 +257,10 @@ app.put('/api/sessions/:id', async (req, res) => {
 });
 
 // Risposta di disponibilità di un giocatore (rsvp.<playerId>); non tocca gli altri campi della sessione.
+// Chi dice "Ci sono" sceglie anche il ruolo (voteRoles.<playerId>), tra quelli non già presi da un altro.
 // Se la sessione è una proposta e con questo voto i "Ci sono" arrivano alla soglia, diventa una sessione vera
-// (status: 'confirmed'). Lettura e scrittura stanno in una transazione: due voti insieme non si perdono.
+// (status: 'confirmed'). Lettura e scrittura stanno in una transazione: due voti insieme non si perdono,
+// e due persone non possono scegliere lo stesso ruolo.
 app.put('/api/sessions/:id/rsvp', async (req, res) => {
   const parsed = parseRsvp(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
@@ -216,21 +274,36 @@ app.put('/api/sessions/:id/rsvp', async (req, res) => {
     if (parsed.status) rsvp[parsed.playerId] = parsed.status;
     else delete rsvp[parsed.playerId];
 
+    if (parsed.status === 'yes') {
+      const holder = roleTakenBy({ rsvp, voteRoles: data.voteRoles ?? {}, players: data.players ?? [] }, parsed.playerId, parsed.role);
+      if (holder) return { conflict: true };
+    }
+
     const confirmedNow = shouldConfirm(data.status, rsvp);
-    const fields = [new FieldPath('rsvp', parsed.playerId), parsed.status ?? FieldValue.delete()];
+    const fields = [
+      new FieldPath('rsvp', parsed.playerId),
+      parsed.status ?? FieldValue.delete(),
+      new FieldPath('voteRoles', parsed.playerId),
+      parsed.status === 'yes' ? parsed.role : FieldValue.delete(),
+    ];
     if (confirmedNow) fields.push('status', 'confirmed', 'confirmedAt', new Date().toISOString());
     tx.update(ref, ...fields);
-    return { confirmedNow, sessionStatus: confirmedNow ? 'confirmed' : (data.status ?? 'confirmed') };
+    return {
+      confirmedNow,
+      sessionStatus: confirmedNow ? 'confirmed' : (data.status ?? 'confirmed'),
+      alreadyConfirmed: !confirmedNow && data.status === 'confirmed' && data.source === 'weekly',
+    };
   });
 
   if (!result) return res.status(404).json({ error: 'Not found' });
-  res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status, ...result });
+  if (result.conflict) return res.status(409).json({ error: 'Quel ruolo è già stato scelto da un altro giocatore: scegline uno libero' });
+  const { alreadyConfirmed, ...body } = result;
+  res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status, role: parsed.role ?? null, ...body });
 
-  // Appena la proposta diventa sessione vera la squadra si compila da sola. Dopo la risposta, così il voto
-  // non aspetta le chiamate a Riot; il browser aggiorna la sessione poco dopo.
-  if (result.confirmedNow) {
-    autofillSession(req.params.id).catch((error) => console.error('Compilazione automatica non riuscita:', error.message));
-  }
+  // Dopo la risposta, così il voto non aspetta le chiamate a Riot; il browser aggiorna la sessione poco dopo.
+  // Alla conferma la squadra si compila per intero; sui voti successivi cambia solo il giocatore che ha votato.
+  const background = result.confirmedNow ? autofillSession(req.params.id) : alreadyConfirmed ? applyVoteToSession(req.params.id, parsed.playerId) : null;
+  background?.catch((error) => console.error('Compilazione automatica non riuscita:', error.message));
 });
 
 // Compila (o ricompila) la squadra con chi ha votato "Ci sono": è la stessa operazione che parte da sola alla conferma

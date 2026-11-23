@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, Region, RiotProfile, RsvpStatus } from '../types';
+import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, Region, RiotProfile, Role, RsvpStatus } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -13,11 +13,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Una sola richiesta della password alla volta: se più richieste ricevono 401 insieme, aspettano tutte la stessa risposta
+let passwordPrompt: Promise<string | null> | null = null;
+
 // Se il server risponde 401 chiede la password e ripete la richiesta una volta
 api.interceptors.response.use(undefined, async (error: AxiosError) => {
   const config = error.config as (InternalAxiosRequestConfig & { _retried?: boolean }) | undefined;
   if (error.response?.status === 401 && config && !config._retried) {
-    const password = window.prompt('Password del team per modificare i dati:');
+    const stored = localStorage.getItem(PASSWORD_KEY);
+    // Un'altra richiesta ha già salvato una password dopo l'invio di questa: basta riprovare, senza chiedere di nuovo
+    if (stored && config.headers.get('x-team-password') !== stored) {
+      config._retried = true;
+      return api.request(config);
+    }
+    passwordPrompt ??= Promise.resolve(window.prompt('Password del team per modificare i dati:')).finally(() => {
+      passwordPrompt = null;
+    });
+    const password = await passwordPrompt;
     if (password) {
       localStorage.setItem(PASSWORD_KEY, password);
       config._retried = true;
@@ -75,8 +87,14 @@ export interface RsvpResult {
   sessionStatus: SessionStatus;
 }
 
-export const setRsvp = async (sessionId: string, playerId: string, status: RsvpStatus | null): Promise<RsvpResult> => {
-  const response = await api.put(`/api/sessions/${sessionId}/rsvp`, { playerId, status });
+// Chi risponde "yes" indica anche il ruolo con cui gioca
+export const setRsvp = async (
+  sessionId: string,
+  playerId: string,
+  status: RsvpStatus | null,
+  role?: Role,
+): Promise<RsvpResult> => {
+  const response = await api.put(`/api/sessions/${sessionId}/rsvp`, { playerId, status, role });
   return { confirmedNow: !!response.data.confirmedNow, sessionStatus: response.data.sessionStatus ?? 'confirmed' };
 };
 

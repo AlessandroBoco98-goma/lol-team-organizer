@@ -29,6 +29,7 @@ import RsvpBar from "../components/RsvpBar";
 import Lobby from "../components/Lobby";
 import LiveCountdown from "../components/LiveCountdown";
 import DraftPanel from "../components/DraftPanel";
+import TeamStats from "../components/TeamStats";
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -79,6 +80,16 @@ export default function SessionDetail() {
   const counts = rsvpCounts(session, teamPlayers);
   const yesCount = counts.yes;
   const label = countdownLabel(session);
+  const resolvedPlayers = session.players.map((p) => resolveSessionPlayer(p, teamPlayers));
+
+  // Perché alcuni giocatori sono senza campioni dopo la compilazione automatica (solo per chi è ancora senza)
+  const report = session.autoFillReport;
+  const missingNames = (report?.withoutData ?? []).filter((n) => resolvedPlayers.some((p) => p.name === n && p.champions.length === 0));
+  const fillNotice = report && !report.riotEnabled
+    ? "Le statistiche Riot non sono attive sul server: la squadra è stata compilata solo con i ruoli. Serve la variabile RIOT_API_KEY sul backend."
+    : missingNames.length > 0
+      ? `Nessun dato Riot per ${missingNames.join(", ")}. Controlla che abbiano Riot ID e regione nella pagina Giocatori e partite recenti su Summoner's Rift, poi premi "Compila dai Ci sono".`
+      : null;
 
   const handleCompose = () => {
     if (
@@ -155,6 +166,11 @@ export default function SessionDetail() {
             </button>
           )}
         </div>
+        {fillNotice && session.players.length > 0 && (
+          <p className="rounded-md border border-lol-gold/30 bg-lol-gold/5 px-4 py-3 text-sm text-lol-text/80" role="status">
+            {fillNotice}
+          </p>
+        )}
         {session.players.length === 0 && (
           <div className="panel p-8 text-center text-sm text-lol-mist">
             Nessun giocatore ancora. Quando qualcuno conferma, la squadra si compila con il ruolo abituale e i campioni
@@ -230,6 +246,8 @@ export default function SessionDetail() {
           })}
         </div>
       </section>
+
+      <TeamStats players={resolvedPlayers} />
 
       {champions.length > 0 && (
         <DraftPanel

@@ -1,4 +1,4 @@
-import type { RiotRank } from '../types';
+import type { RiotMatch, RiotRank } from '../types';
 
 const TIER_LABELS: Record<string, string> = {
   IRON: 'Ferro',
@@ -42,6 +42,27 @@ export function winRate(wins: number, games: number): number {
 // (uccisioni + assist) / morti, con le morti a 1 come minimo per evitare la divisione per zero
 export function kdaRatio(kills: number, deaths: number, assists: number): number {
   return Math.round(((kills + assists) / Math.max(1, deaths)) * 100) / 100;
+}
+
+// Forma recente dalle ultime partite (la più recente per prima): vittorie, sconfitte, KDA medio e risultati in ordine
+export function recentForm(matches: Pick<RiotMatch, 'win' | 'kills' | 'deaths' | 'assists'>[]): {
+  games: number;
+  wins: number;
+  losses: number;
+  kda: number;
+  results: boolean[];
+} {
+  const wins = matches.filter((m) => m.win).length;
+  const kills = matches.reduce((n, m) => n + m.kills, 0);
+  const deaths = matches.reduce((n, m) => n + m.deaths, 0);
+  const assists = matches.reduce((n, m) => n + m.assists, 0);
+  return {
+    games: matches.length,
+    wins,
+    losses: matches.length - wins,
+    kda: kdaRatio(kills, deaths, assists),
+    results: matches.map((m) => m.win),
+  };
 }
 
 // "5 min fa", "3 ore fa", "2 giorni fa"

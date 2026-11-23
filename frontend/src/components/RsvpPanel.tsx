@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { CalendarCheck, Check, Clock, MessageCircle, X } from "lucide-react";
-import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type Session } from "../types";
-import { rsvpCounts, sessionInviteText, whatsappChatUrl } from "../lib/utils";
+import { ROLE_LABELS, RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type Role, type RsvpStatus, type Session } from "../types";
+import { rsvpCounts, sessionInviteText, takenRoles, whatsappChatUrl } from "../lib/utils";
 import { label, input, panel, sectionTitle } from "../lib/styles";
 import { useMe } from "../lib/me";
 import { useRsvpMutation } from "../lib/useRsvp";
+import RolePicker from "./RolePicker";
 
 // Riepilogo delle risposte e, per le sessioni future, i pulsanti per rispondere.
 // Non ci sono account: ognuno sceglie "Chi sei?" e la scelta resta nel suo browser.
@@ -17,6 +19,23 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
   const current = meCandidate ? session.rsvp?.[meCandidate.id] : undefined;
 
   const mutation = useRsvpMutation(session.id);
+  const [picking, setPicking] = useState(false);
+  const myRole = meCandidate ? session.voteRoles?.[meCandidate.id] : undefined;
+
+  // "Ci sono" apre la scelta del ruolo tra quelli liberi; gli altri voti partono subito
+  const vote = (status: RsvpStatus) => {
+    if (!meCandidate) return;
+    if (status === "yes" && current !== "yes") {
+      setPicking(true);
+      return;
+    }
+    setPicking(false);
+    mutation.mutate({ playerId: meCandidate.id, status: current === status ? null : status });
+  };
+
+  const pickRole = (role: Role) => {
+    if (meCandidate) mutation.mutate({ playerId: meCandidate.id, status: "yes", role }, { onSuccess: () => setPicking(false) });
+  };
 
   // Per le sessioni passate il riepilogo sta già nell'intestazione e non si può più rispondere
   if (teamPlayers.length === 0 || past) return null;
@@ -51,7 +70,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
                   key={s}
                   type="button"
                   disabled={!meCandidate || mutation.isPending}
-                  onClick={() => meCandidate && mutation.mutate({ playerId: meCandidate.id, status: active ? null : s })}
+                  onClick={() => vote(s)}
                   className="chamfer inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-40 [--c:9px]"
                   style={{
                     color: active ? "#060a12" : RSVP_COLORS[s],
@@ -63,11 +82,26 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
                 >
                   {s === "yes" ? <Check size={15} aria-hidden /> : s === "no" ? <X size={15} aria-hidden /> : <Clock size={15} aria-hidden />}
                   {RSVP_LABELS[s]}
+                  {s === "yes" && active && myRole && <span className="text-xs font-medium opacity-80">· {ROLE_LABELS[myRole]}</span>}
                 </button>
               );
             })}
+            {current === "yes" && !picking && (
+              <button type="button" onClick={() => setPicking(true)} className="self-center px-1 text-xs text-lol-mist underline-offset-2 transition hover:text-lol-text hover:underline">
+                Cambia ruolo
+              </button>
+            )}
           </div>
         </div>
+      )}
+      {picking && meCandidate && (
+        <RolePicker
+          taken={takenRoles(session, teamPlayers, meCandidate.id)}
+          current={myRole}
+          disabled={mutation.isPending}
+          onPick={pickRole}
+          onCancel={() => setPicking(false)}
+        />
       )}
       {!past && <p className="text-xs text-lol-mist">Clicca di nuovo sulla tua risposta per annullarla.</p>}
 

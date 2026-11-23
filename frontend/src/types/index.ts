@@ -90,12 +90,20 @@ export interface RiotChampionStat {
   keystone: number | null;
 }
 
+// Partite e campioni giocati in un ruolo (ruoli dell'app)
+export interface RiotRoleStat {
+  role: Role;
+  games: number;
+  champions: { championId: string; games: number }[];
+}
+
 export interface RiotProfile {
   riotId: string;
   region: string;
   ranks: RiotRank[];
   recent: RiotMatch[];
   champions: RiotChampionStat[];
+  roles?: RiotRoleStat[];
   gamesAnalyzed: number;
   updatedAt: string;
 }
@@ -150,6 +158,10 @@ export interface Session {
   source?: 'weekly';
   // Quando la proposta è diventata sessione vera (ISO)
   confirmedAt?: string;
+  // Ruolo scelto da ciascuno votando "Ci sono", per id del giocatore
+  voteRoles?: Record<string, Role>;
+  // Esito dell'ultima compilazione automatica della squadra: spiega perché mancano i campioni
+  autoFillReport?: { at: string; riotEnabled: boolean; withoutData: string[] };
   createdAt: string;
   updatedAt?: string;
 }

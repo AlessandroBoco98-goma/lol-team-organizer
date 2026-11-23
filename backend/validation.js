@@ -96,16 +96,20 @@ function parseDraft(body) {
 }
 
 const RSVP_STATUSES = ['yes', 'maybe', 'no'];
+const VOTE_ROLES = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
 
-// Valida il body di una risposta RSVP: { playerId, status } con status null/'' per annullare la risposta.
-// Ritorna { error } oppure { playerId, status } (status null = rimuovi)
+// Valida il body di una risposta RSVP: { playerId, status, role } con status null/'' per annullare la risposta.
+// Chi risponde "yes" deve indicare anche il ruolo con cui gioca.
+// Ritorna { error } oppure { playerId, status } (status null = rimuovi) con role solo per "yes"
 function parseRsvp(body) {
   const playerId = typeof body?.playerId === 'string' ? body.playerId.trim() : '';
   if (!playerId || playerId.length > 128) return { error: 'Giocatore mancante' };
   const raw = body.status;
   if (raw === null || raw === undefined || raw === '') return { playerId, status: null };
   if (!RSVP_STATUSES.includes(raw)) return { error: 'Stato RSVP non valido' };
-  return { playerId, status: raw };
+  if (raw !== 'yes') return { playerId, status: raw };
+  if (!VOTE_ROLES.includes(body.role)) return { error: 'Scegli il ruolo con cui giochi' };
+  return { playerId, status: 'yes', role: body.role };
 }
 
 module.exports = {
