@@ -76,25 +76,25 @@ test('parsePhone: rifiuta numeri senza prefisso internazionale o malformati', ()
 const c = (id) => ({ id, name: id });
 
 test('parseDraft: un draft vuoto è valido e viene normalizzato', () => {
-  assert.deepEqual(parseDraft({}).draft, { allyBans: [], enemyBans: [], enemyPicks: [], notes: '' });
-  assert.deepEqual(parseDraft({ notes: '  jungle invade  ' }).draft.notes, 'jungle invade');
+  assert.deepEqual(parseDraft({}).draft, { allyBans: [] });
 });
 
-test('parseDraft: salva solo id e nome dei campioni', () => {
-  const { draft } = parseDraft({ allyBans: [{ id: 'Ahri', name: 'Ahri', extra: 1 }], enemyPicks: [c('Zed')] });
-  assert.deepEqual(draft.allyBans, [c('Ahri')]);
-  assert.deepEqual(draft.enemyPicks, [c('Zed')]);
+test('parseDraft: salva solo id e nome dei campioni e ignora i vecchi campi sui nemici', () => {
+  const { draft } = parseDraft({
+    allyBans: [{ id: 'Ahri', name: 'Ahri', extra: 1 }],
+    enemyPicks: [c('Zed')],
+    enemyBans: [c('Lux')],
+    notes: 'vecchie note',
+  });
+  assert.deepEqual(draft, { allyBans: [c('Ahri')] });
 });
 
-test('parseDraft: rispetta i limiti e rifiuta duplicati e dati non validi', () => {
+test('parseDraft: rispetta il limite e rifiuta duplicati e dati non validi', () => {
   const six = ['a', 'b', 'c', 'd', 'e', 'f'].map(c);
   assert.ok(parseDraft({ allyBans: six }).error);
-  assert.ok(parseDraft({ enemyBans: six }).error);
-  assert.ok(parseDraft({ enemyPicks: six }).error);
   assert.ok(parseDraft({ allyBans: [c('a'), c('a')] }).error);
   assert.ok(parseDraft({ allyBans: [{ id: 1, name: 'x' }] }).error);
   assert.ok(parseDraft({ allyBans: 'Ahri' }).error);
-  assert.ok(parseDraft({ notes: 'x'.repeat(2001) }).error);
   assert.equal(parseDraft({ allyBans: six.slice(0, 5) }).error, undefined);
 });
 

@@ -65,6 +65,30 @@ test('pickChampions: prima i più giocati nel ruolo, poi i più giocati in assol
   assert.deepEqual(pickChampions(p, 'ADC'), ['Jinx', 'Ashe', 'Lulu']);
 });
 
+test('pickChampions: dopo il ruolo giocato vengono i campioni con più maestria, poi gli altri', () => {
+  const p = {
+    roles: [{ role: 'ADC', games: 3, champions: [{ championId: 'Jinx', games: 3 }] }],
+    champions: [{ championId: 'Lulu', games: 5 }],
+    mastery: [{ championId: 'Ashe', points: 80000, level: 6 }, { championId: 'Vayne', points: 300000, level: 9 }],
+  };
+  assert.deepEqual(pickChampions(p, 'ADC'), ['Jinx', 'Vayne', 'Ashe']); // maestria più alta per prima
+});
+
+test('pickChampions: la maestria è filtrata per ruolo quando i ruoli del campione sono noti', () => {
+  const p = {
+    roles: [],
+    champions: [{ championId: 'Lulu', games: 5 }],
+    mastery: [{ championId: 'Garen', points: 900000 }, { championId: 'Ashe', points: 80000 }, { championId: 'Jinx', points: 50000 }],
+  };
+  const traits = { Garen: { positions: ['TOP'] }, Ashe: { positions: ['ADC', 'SUPPORT'] }, Jinx: { positions: ['ADC'] } };
+  assert.deepEqual(pickChampions(p, 'ADC', 3, traits), ['Ashe', 'Jinx', 'Lulu']); // Garen non è un ADC
+});
+
+test('pickChampions: con ruoli sconosciuti (positions null) o campione senza tratti la maestria vale per ogni ruolo', () => {
+  const p = { mastery: [{ championId: 'Nuovo', points: 100 }, { championId: 'Ignoto', points: 50 }] };
+  assert.deepEqual(pickChampions(p, 'MID', 3, { Nuovo: { positions: null } }), ['Nuovo', 'Ignoto']);
+});
+
 test('pickChampions: senza dati nel ruolo usa i campioni in assoluto; senza profilo è vuoto', () => {
   const p = profile([['MID', 2, [['Ahri', 2]]]], [['Jinx', 5], ['Ashe', 4]]);
   assert.deepEqual(pickChampions(p, 'ADC'), ['Jinx', 'Ashe']);
@@ -122,6 +146,17 @@ test('planComposition: il nome viene aggiornato a quello attuale del roster', ()
   const existing = [{ playerId: 'p2', name: 'Vecchio nome', role: 'TOP', champions: [] }];
   const { players } = planComposition({ voters, existing });
   assert.equal(players.find((p) => p.playerId === 'p2').name, 'Carre');
+});
+
+test('planComposition: usa maestria e tratti per scegliere i pick nel ruolo votato', () => {
+  const p = {
+    roles: [],
+    champions: [],
+    mastery: [{ championId: 'Garen', points: 500000 }, { championId: 'Ahri', points: 200000 }],
+  };
+  const traits = { Garen: { positions: ['TOP'] }, Ahri: { positions: ['MID'] } };
+  const { players } = planComposition({ voters: [voters[0]], voteRoles: { p1: 'MID' }, profiles: { p1: p }, traits });
+  assert.deepEqual(players[0].champions.map((c) => c.id), ['Ahri']);
 });
 
 test('planComposition: il ruolo scelto al voto vince sulle abitudini, i campioni sono quelli di quel ruolo', () => {

@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
-import { CalendarDays, ListChecks, Plus, Users } from "lucide-react";
+import { CalendarDays, ListChecks, Plus, Trophy, Users } from "lucide-react";
 import { btnPrimary } from "../lib/styles";
 
 // Marchio: un esagono ottone con le iniziali, richiamo del reticolo dell'hero
@@ -50,6 +50,15 @@ export default function Navbar() {
               <>
                 <ListChecks size={16} aria-hidden />
                 <span className="hidden sm:inline">Votazione</span>
+                <span className={underline(isActive)} />
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/roster" className={linkClass}>
+            {({ isActive }) => (
+              <>
+                <Trophy size={16} aria-hidden />
+                <span className="hidden sm:inline">Roster</span>
                 <span className={underline(isActive)} />
               </>
             )}

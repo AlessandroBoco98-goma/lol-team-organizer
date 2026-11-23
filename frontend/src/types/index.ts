@@ -90,6 +90,29 @@ export interface RiotChampionStat {
   keystone: number | null;
 }
 
+// Maestria su un campione (Champion-Mastery-V4)
+export interface RiotMastery {
+  championId: string;
+  level: number;
+  points: number;
+  lastPlayedAt: number | null;
+}
+
+// Tratti di un campione per le comp (backend: Community Dragon + Meraki). I numeri vanno da 0 a 3.
+export interface ChampionTraits {
+  damage: number;
+  durability: number;
+  crowdControl: number;
+  mobility: number;
+  utility: number;
+  damageType: 'physical' | 'magic' | 'mixed';
+  // Ruoli in cui si gioca; null se non noti
+  positions: Role[] | null;
+  source: string;
+}
+
+export type TraitMap = Record<string, ChampionTraits>;
+
 // Partite e campioni giocati in un ruolo (ruoli dell'app)
 export interface RiotRoleStat {
   role: Role;
@@ -104,20 +127,16 @@ export interface RiotProfile {
   recent: RiotMatch[];
   champions: RiotChampionStat[];
   roles?: RiotRoleStat[];
+  mastery?: RiotMastery[];
   gamesAnalyzed: number;
   updatedAt: string;
 }
 
 export const MAX_BANS = 5;
-export const MAX_ENEMY_PICKS = 5;
-export const MAX_DRAFT_NOTES = 2000;
 
-// Draft di una sessione: ban nostri e nemici, pick dell'avversario e note sugli avversari
+// Draft di una sessione: i nostri ban
 export interface Draft {
   allyBans: ChampionPick[];
-  enemyBans: ChampionPick[];
-  enemyPicks: ChampionPick[];
-  notes: string;
 }
 
 // Conferme ("Ci sono") necessarie perché un giorno proposto diventi una sessione vera; uguale a CONFIRM_THRESHOLD del backend
@@ -149,7 +168,7 @@ export interface Session {
   notes: string;
   // Disponibilità per id del giocatore nel roster; opzionale, assente nelle sessioni vecchie
   rsvp?: Record<string, RsvpStatus>;
-  // Ban, pick nemici e note; opzionale, assente nelle sessioni vecchie
+  // I nostri ban; opzionale, assente nelle sessioni vecchie
   draft?: Draft;
   // 'proposal': giorno proposto dalla votazione settimanale, non ancora nel calendario.
   // Assente o 'confirmed': sessione vera (create a mano, o proposte che hanno raggiunto le conferme).

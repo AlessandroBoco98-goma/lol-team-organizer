@@ -125,6 +125,21 @@ function summarizeRanks(entries) {
     .sort((a, b) => (a.queue === 'solo' ? -1 : 1) - (b.queue === 'solo' ? -1 : 1));
 }
 
+// Maestria per campione (Champion-Mastery-V4): livello, punti e ultima partita, dai più ai meno alti.
+// keyMap: { '222': 'Jinx' } da Data Dragon; le voci con una chiave sconosciuta vengono saltate.
+function summarizeMastery(entries, keyMap = {}, limit = 20) {
+  return (Array.isArray(entries) ? entries : [])
+    .filter((e) => keyMap[String(e.championId)])
+    .map((e) => ({
+      championId: keyMap[String(e.championId)],
+      level: e.championLevel ?? 0,
+      points: e.championPoints ?? 0,
+      lastPlayedAt: e.lastPlayTime ?? null,
+    }))
+    .sort((a, b) => b.points - a.points)
+    .slice(0, limit);
+}
+
 // Esegue fn su tutti gli elementi, al massimo `limit` alla volta, mantenendo l'ordine
 async function mapLimit(items, limit, fn) {
   const results = new Array(items.length);
@@ -144,13 +159,17 @@ async function mapLimit(items, limit, fn) {
 function createRiotService({
   apiKey,
   fetchFn = fetch,
-  ttlMs = 10 * 60 * 1000,
+  ttlMs = 30 * 60 * 1000,
   now = () => Date.now(),
   matchCount = 15,
   concurrency = 4,
+  // async () => ({ '222': 'Jinx' }): id numerici di Riot -> id di Data Dragon, per le maestrie
+  championKeys = async () => ({}),
 }) {
   const cache = new Map();
   const inflight = new Map();
+  // Il puuid di un Riot ID non cambia: si ricorda a lungo e si risparmia una chiamata a ogni aggiornamento
+  const puuids = new Map();
 
   async function get(url) {
     const res = await fetchFn(url, { headers: { 'X-Riot-Token': apiKey } });
@@ -172,24 +191,33 @@ function createRiotService({
     const gameName = riotId.slice(0, hash);
     const tagLine = riotId.slice(hash + 1);
 
-    let account;
-    try {
-      account = await get(
-        `https://${route.account}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
-      );
-    } catch (e) {
-      if (e.status === 404) throw new RiotError(404, 'Giocatore non trovato su Riot: controlla Riot ID e regione');
-      throw e;
+    const puuidKey = `${region}:${riotId.toLowerCase()}`;
+    let puuid = puuids.get(puuidKey);
+    if (!puuid) {
+      try {
+        const account = await get(
+          `https://${route.account}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
+        );
+        puuid = account.puuid;
+        puuids.set(puuidKey, puuid);
+      } catch (e) {
+        if (e.status === 404) throw new RiotError(404, 'Giocatore non trovato su Riot: controlla Riot ID e regione');
+        throw e;
+      }
     }
-    const puuid = account.puuid;
 
-    const [entries, ids] = await Promise.all([
+    const [entries, ids, masteryEntries] = await Promise.all([
       // Il rank è un extra: se manca non blocca il resto
       get(`https://${route.platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/${puuid}`).catch((e) => {
         if (e.status === 429) throw e;
         return [];
       }),
       get(`https://${route.match}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?start=0&count=${matchCount}`),
+      // Anche le maestrie sono un extra: se mancano, il profilo resta valido
+      get(`https://${route.platform}.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/${puuid}`).catch((e) => {
+        if (e.status === 429) throw e;
+        return [];
+      }),
     ]);
 
     const matches = await mapLimit(ids, concurrency, (id) =>
@@ -203,6 +231,7 @@ function createRiotService({
       riotId,
       region,
       ranks: summarizeRanks(entries),
+      mastery: summarizeMastery(masteryEntries, await championKeys().catch(() => ({}))),
       ...summarizeMatches(puuid, matches.filter(Boolean)),
       updatedAt: new Date(now()).toISOString(),
     };
@@ -226,4 +255,4 @@ function createRiotService({
   return { getProfile };
 }
 
-module.exports = { ROUTING, RiotError, createRiotService, summarizeMatches, summarizeRanks, normalizeChampionName };
+module.exports = { ROUTING, RiotError, createRiotService, summarizeMatches, summarizeRanks, summarizeMastery, normalizeChampionName };

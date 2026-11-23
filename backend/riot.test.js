@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ROUTING, RiotError, createRiotService, summarizeMatches, summarizeRanks, normalizeChampionName } = require('./riot');
+const { ROUTING, RiotError, createRiotService, summarizeMatches, summarizeRanks, summarizeMastery, normalizeChampionName } = require('./riot');
 
 const PUUID = 'my-puuid';
 
@@ -111,6 +111,30 @@ test('summarizeRanks: solo e flex, solo prima; altre code ignorate', () => {
   assert.deepEqual(summarizeRanks(null), []);
 });
 
+test('summarizeMastery: id di Data Dragon, dai punti più alti, chiavi sconosciute saltate', () => {
+  const keys = { 222: 'Jinx', 103: 'Ahri', 117: 'Lulu' };
+  const r = summarizeMastery(
+    [
+      { championId: 103, championLevel: 7, championPoints: 310000, lastPlayTime: 1700000000000 },
+      { championId: 999, championLevel: 5, championPoints: 900000 }, // sconosciuta
+      { championId: 222, championLevel: 10, championPoints: 520000, lastPlayTime: 1700000500000 },
+      { championId: 117, championLevel: 4, championPoints: 12000 },
+    ],
+    keys,
+  );
+  assert.deepEqual(r.map((m) => [m.championId, m.level, m.points]), [['Jinx', 10, 520000], ['Ahri', 7, 310000], ['Lulu', 4, 12000]]);
+  assert.equal(r[0].lastPlayedAt, 1700000500000);
+  assert.equal(r[2].lastPlayedAt, null);
+});
+
+test('summarizeMastery: limite e dati mancanti', () => {
+  const keys = Object.fromEntries(Array.from({ length: 30 }, (_, i) => [i + 1, `C${i + 1}`]));
+  const many = Array.from({ length: 30 }, (_, i) => ({ championId: i + 1, championLevel: 5, championPoints: i }));
+  assert.equal(summarizeMastery(many, keys).length, 20);
+  assert.deepEqual(summarizeMastery(null, keys), []);
+  assert.deepEqual(summarizeMastery([{ championId: 1 }], {}), []);
+});
+
 // Falso fetch: mappa URL -> risposta
 function fakeFetch(routes, calls = []) {
   return async (url, options) => {
@@ -145,6 +169,43 @@ test('getProfile: costruisce il profilo, usa il cluster giusto e invia la chiave
   assert.ok(calls[0].url.startsWith('https://europe.api.riotgames.com/riot/account/v1/'));
   assert.ok(calls.some((c) => c.url.startsWith('https://euw1.api.riotgames.com/lol/league/v4/')));
   assert.ok(calls.every((c) => !c.url.includes('undefined')));
+});
+
+test('getProfile: include le maestrie, con gli id di Data Dragon', async () => {
+  const routes = {
+    ...happyRoutes(),
+    'champion-mastery/v4': { body: [{ championId: 222, championLevel: 8, championPoints: 120000, lastPlayTime: 5 }, { championId: 1, championLevel: 3, championPoints: 900 }] },
+  };
+  const calls = [];
+  const svc = createRiotService({ apiKey: 'K', fetchFn: fakeFetch(routes, calls), championKeys: async () => ({ 222: 'Jinx', 1: 'Annie' }) });
+  const p = await svc.getProfile('Faker#KR1', 'EUW');
+  assert.deepEqual(p.mastery.map((m) => m.championId), ['Jinx', 'Annie']);
+  assert.ok(calls.some((c) => c.url.startsWith('https://euw1.api.riotgames.com/lol/champion-mastery/v4/champion-masteries/by-puuid/')));
+});
+
+test('getProfile: senza maestrie (errore o mappa non disponibile) il profilo resta valido', async () => {
+  const withError = { ...happyRoutes(), 'champion-mastery/v4': { status: 500 } };
+  const p1 = await createRiotService({ apiKey: 'K', fetchFn: fakeFetch(withError) }).getProfile('Faker#KR1', 'EUW');
+  assert.deepEqual(p1.mastery, []);
+  const p2 = await createRiotService({
+    apiKey: 'K',
+    fetchFn: fakeFetch({ ...happyRoutes(), 'champion-mastery/v4': { body: [{ championId: 222, championPoints: 5 }] } }),
+    championKeys: async () => {
+      throw new Error('ddragon giù');
+    },
+  }).getProfile('Faker#KR1', 'EUW');
+  assert.deepEqual(p2.mastery, []);
+  assert.equal(p2.gamesAnalyzed, 2);
+});
+
+test('getProfile: il puuid si ricorda tra un aggiornamento e l\'altro', async () => {
+  const calls = [];
+  let t = 0;
+  const svc = createRiotService({ apiKey: 'K', fetchFn: fakeFetch(happyRoutes(), calls), ttlMs: 100, now: () => t });
+  await svc.getProfile('Faker#KR1', 'EUW');
+  t = 1000; // cache del profilo scaduta
+  await svc.getProfile('Faker#KR1', 'EUW');
+  assert.equal(calls.filter((c) => c.url.includes('by-riot-id')).length, 1);
 });
 
 test('getProfile: codifica nome e tag nell\'URL', async () => {

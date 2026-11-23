@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, Region, RiotProfile, Role, RsvpStatus } from '../types';
+import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, Region, RiotProfile, Role, RsvpStatus, TraitMap } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -147,6 +147,12 @@ export const deletePlayer = async (id: string): Promise<void> => {
 // Statistiche Riot di un giocatore: il backend richiede la password del team e può rispondere 503 se manca la chiave Riot
 export const getPlayerRiot = async (playerId: string): Promise<RiotProfile> => {
   const response = await api.get(`/api/players/${playerId}/riot`);
+  return response.data;
+};
+
+// Tratti dei campioni (danno, resistenza, controllo, mobilità, utilità, ruoli): pubblici, il server li tiene in cache 24 ore
+export const getChampionTraits = async (): Promise<TraitMap> => {
+  const response = await api.get('/api/champion-traits');
   return response.data;
 };
 

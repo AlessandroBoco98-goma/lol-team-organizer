@@ -5,8 +5,6 @@ import { championIcon } from "../lib/ddragon";
 import { analyzeComposition } from "../lib/composition";
 import {
   MAX_BANS,
-  MAX_DRAFT_NOTES,
-  MAX_ENEMY_PICKS,
   type Champion,
   type ChampionPick,
   type Draft,
@@ -17,7 +15,7 @@ import { Ban } from "lucide-react";
 import { toast } from "sonner";
 import { btnPrimary, input, label, panel, sectionTitle } from "../lib/styles";
 
-const EMPTY_DRAFT: Draft = { allyBans: [], enemyBans: [], enemyPicks: [], notes: "" };
+const EMPTY_DRAFT: Draft = { allyBans: [] };
 
 const LEVEL_STYLE = {
   ok: { icon: "✓", color: "#4fbf66" },
@@ -83,7 +81,7 @@ function ChampionListEditor({
   );
 }
 
-// Ban, pick nemici e note sugli avversari, con suggerimenti sulla composizione calcolati in tempo reale
+// Ban nostri, con suggerimenti sulla composizione calcolati in tempo reale
 export default function DraftPanel({
   session,
   players,
@@ -98,7 +96,7 @@ export default function DraftPanel({
   const [draft, setLocal] = useState<Draft>(saved);
 
   const sorted = [...champions].sort((a, b) => a.name.localeCompare(b.name, "it"));
-  const taken = new Set([...draft.allyBans, ...draft.enemyBans, ...draft.enemyPicks].map((c) => c.id));
+  const taken = new Set(draft.allyBans.map((c) => c.id));
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
   const insights = analyzeComposition(players, champions, draft);
 
@@ -118,7 +116,7 @@ export default function DraftPanel({
         <Ban size={20} aria-hidden /> Draft
       </h2>
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="max-w-md">
         <ChampionListEditor
           title="Ban nostri"
           items={draft.allyBans}
@@ -126,33 +124,6 @@ export default function DraftPanel({
           champions={sorted}
           taken={taken}
           onChange={(allyBans) => setLocal({ ...draft, allyBans })}
-        />
-        <ChampionListEditor
-          title="Ban nemici"
-          items={draft.enemyBans}
-          max={MAX_BANS}
-          champions={sorted}
-          taken={taken}
-          onChange={(enemyBans) => setLocal({ ...draft, enemyBans })}
-        />
-        <ChampionListEditor
-          title="Pick nemici"
-          items={draft.enemyPicks}
-          max={MAX_ENEMY_PICKS}
-          champions={sorted}
-          taken={taken}
-          onChange={(enemyPicks) => setLocal({ ...draft, enemyPicks })}
-        />
-      </div>
-
-      <div>
-        <label className={label}>Note sugli avversari</label>
-        <textarea
-          value={draft.notes}
-          maxLength={MAX_DRAFT_NOTES}
-          onChange={(e) => setLocal({ ...draft, notes: e.target.value })}
-          placeholder="Es: il loro jungle fa invade al livello 1, il mid va sempre su roam..."
-          className={`${input} min-h-24 resize-y`}
         />
       </div>
 

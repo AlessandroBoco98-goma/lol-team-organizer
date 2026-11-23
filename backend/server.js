@@ -6,6 +6,7 @@ const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 const { createRiotService } = require('./riot');
+const { createTraitsService } = require('./traits');
 const { ROLES, planComposition, applyVote, roleTakenBy } = require('./autofill');
 const { WEEK_SESSION_TIME, nextWorkweekDates, planWeek, shouldConfirm, weekSessionId } = require('./weekly');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
@@ -56,22 +57,40 @@ const DDragon = {
 const sessionsRef = db.collection('sessions');
 const playersRef = db.collection('players');
 
-// Servizio Riot (rank, partite, ruoli e pick): attivo solo se c'è la chiave sul server
-const riot = process.env.RIOT_API_KEY ? createRiotService({ apiKey: process.env.RIOT_API_KEY }) : null;
-
-// Nomi dei campioni (id -> nome) da Data Dragon, in cache per qualche ora
-let championNamesCache = { at: 0, names: {} };
-async function championNames() {
-  if (Date.now() - championNamesCache.at < 6 * 60 * 60 * 1000 && Object.keys(championNamesCache.names).length > 0) {
-    return championNamesCache.names;
-  }
+// Elenco dei campioni da Data Dragon, in cache per qualche ora: nomi, id numerici (per le maestrie) e dati di base
+let championListCache = { at: 0, list: [] };
+async function championList() {
+  if (Date.now() - championListCache.at < 6 * 60 * 60 * 1000 && championListCache.list.length > 0) return championListCache.list;
   try {
-    const list = await DDragon.getChampions();
-    championNamesCache = { at: Date.now(), names: Object.fromEntries(list.map((c) => [c.id, c.name])) };
+    championListCache = { at: Date.now(), list: await DDragon.getChampions() };
   } catch {
-    // senza Data Dragon i campioni vengono mostrati con il loro id
+    // senza Data Dragon restano gli ultimi dati noti (o nessuno: i campioni si mostrano con il loro id)
   }
-  return championNamesCache.names;
+  return championListCache.list;
+}
+
+// id -> nome ("MonkeyKing" -> "Wukong")
+async function championNames() {
+  return Object.fromEntries((await championList()).map((c) => [c.id, c.name]));
+}
+
+// id numerico di Riot -> id di Data Dragon ("222" -> "Jinx"), per leggere le maestrie
+async function championKeys() {
+  return Object.fromEntries((await championList()).map((c) => [String(c.key), c.id]));
+}
+
+// Servizio Riot (rank, partite, ruoli, maestrie e pick): attivo solo se c'è la chiave sul server
+const riot = process.env.RIOT_API_KEY ? createRiotService({ apiKey: process.env.RIOT_API_KEY, championKeys }) : null;
+
+// Tratti dei campioni (danno, resistenza, controllo, mobilità, utilità, ruoli) da Community Dragon e Meraki
+const traitsService = createTraitsService({ listChampions: championList });
+async function championTraits() {
+  try {
+    return await traitsService.getTraits();
+  } catch (error) {
+    console.error('Tratti dei campioni non disponibili:', error.message);
+    return {};
+  }
 }
 
 function httpError(status, message) {
@@ -124,6 +143,7 @@ async function autofillSession(sessionId) {
   // Le chiamate a Riot stanno fuori dalla transazione: sono lente e Firestore la ripeterebbe
   const profiles = await fetchProfiles(firstVoters, first.data());
   const names = await championNames();
+  const traits = await championTraits();
 
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -137,6 +157,7 @@ async function autofillSession(sessionId) {
       existing: session.players ?? [],
       profiles,
       nameOf: (id) => names[id] ?? id,
+      traits,
     });
     const normalized = sessionFields({ date: session.date, time: session.time, players, notes: session.notes }).players;
     const report = fillReport(withoutData);
@@ -159,6 +180,7 @@ async function applyVoteToSession(sessionId, playerId) {
   const voter = { id: playerDoc.id, ...playerDoc.data() };
   const profiles = data.rsvp?.[playerId] === 'yes' ? await fetchProfiles([voter], data) : {};
   const names = await championNames();
+  const traits = await championTraits();
 
   await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
@@ -171,6 +193,7 @@ async function applyVoteToSession(sessionId, playerId) {
       role: session.voteRoles?.[playerId],
       profile: profiles[playerId],
       nameOf: (id) => names[id] ?? id,
+      traits,
     });
     const normalized = sessionFields({ date: session.date, time: session.time, players, notes: session.notes }).players;
     const previous = session.autoFillReport?.withoutData ?? [];
@@ -316,7 +339,7 @@ app.post('/api/sessions/:id/autofill', async (req, res) => {
   }
 });
 
-// Draft (ban, pick nemici, note): si salva a parte per non toccare la composizione né le risposte
+// Draft (i nostri ban): si salva a parte per non toccare la composizione né le risposte
 app.put('/api/sessions/:id/draft', async (req, res) => {
   const parsed = parseDraft(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
@@ -406,6 +429,13 @@ app.get('/api/players/:id/riot', async (req, res) => {
   }
 });
 
+// Tratti dei campioni per le comp (pubblici, in cache 24 ore): { Jinx: { damage, durability, crowdControl, mobility, utility, damageType, positions } }
+app.get('/api/champion-traits', async (req, res) => {
+  const traits = await championTraits();
+  if (Object.keys(traits).length === 0) return res.status(503).json({ error: 'Tratti dei campioni non disponibili al momento' });
+  res.json(traits);
+});
+
 // Champions
 app.get('/api/champions', async (req, res) => {
   try {
@@ -416,4 +446,8 @@ app.get('/api/champions', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  // Scalda la cache dei tratti in background: la prima richiesta non aspetta un centinaio di download
+  championTraits();
+});

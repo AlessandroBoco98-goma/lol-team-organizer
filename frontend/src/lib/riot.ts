@@ -75,6 +75,15 @@ export function timeAgo(timestampMs: number, now: number = Date.now()): string {
   return days === 1 ? '1 giorno fa' : `${days} giorni fa`;
 }
 
+// Punti di maestria in forma breve: 950 -> "950", 12400 -> "12,4k", 312000 -> "312k", 1250000 -> "1,25M"
+export function formatPoints(points: number): string {
+  const short = (n: number, digits: number) => String(Number(n.toFixed(digits))).replace('.', ',');
+  if (points >= 1_000_000) return `${short(points / 1_000_000, 2)}M`;
+  if (points >= 100_000) return `${short(points / 1_000, 0)}k`;
+  if (points >= 1_000) return `${short(points / 1_000, 1)}k`;
+  return String(points);
+}
+
 // "28:30"
 export function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);

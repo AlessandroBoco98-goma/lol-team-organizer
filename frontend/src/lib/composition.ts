@@ -1,11 +1,9 @@
 import { ROLES, ROLE_LABELS, type Champion, type ChampionPick, type Draft, type SessionPlayer } from '../types';
 
-export type BlockReason = 'ally-ban' | 'enemy-ban' | 'enemy-pick';
+export type BlockReason = 'ally-ban';
 
 export const BLOCK_LABELS: Record<BlockReason, string> = {
   'ally-ban': 'Bannato da noi',
-  'enemy-ban': 'Bannato dal nemico',
-  'enemy-pick': 'Preso dal nemico',
 };
 
 export interface Insight {
@@ -15,14 +13,11 @@ export interface Insight {
 
 // Perché un campione non è giocabile in questo draft; null se è libero
 export function blockReason(championId: string, draft?: Draft): BlockReason | null {
-  if (!draft) return null;
-  if (draft.allyBans.some((c) => c.id === championId)) return 'ally-ban';
-  if (draft.enemyBans.some((c) => c.id === championId)) return 'enemy-ban';
-  if (draft.enemyPicks.some((c) => c.id === championId)) return 'enemy-pick';
+  if (draft?.allyBans?.some((c) => c.id === championId)) return 'ally-ban';
   return null;
 }
 
-// Campione principale di un giocatore: il primo del suo pool che non è bannato né preso dal nemico
+// Campione principale di un giocatore: il primo del suo pool che non è bannato
 export function mainChampion(player: Pick<SessionPlayer, 'champions'>, draft?: Draft): ChampionPick | undefined {
   return player.champions.find((c) => !blockReason(c.id, draft));
 }
@@ -63,7 +58,7 @@ export function analyzeComposition(players: SessionPlayer[], champions: Champion
     if (main) {
       mains.push(main);
     } else if (p.champions.length > 0) {
-      insights.push({ level: 'warn', text: `${p.name} non ha campioni disponibili: tutti bannati o presi dal nemico.` });
+      insights.push({ level: 'warn', text: `${p.name} non ha campioni disponibili: tutti bannati.` });
     }
   }
 
@@ -86,15 +81,6 @@ export function analyzeComposition(players: SessionPlayer[], champions: Champion
         ? { level: 'ok', text: 'C\'è almeno un campione da prima linea (Tank o Fighter).' }
         : { level: 'warn', text: 'Nessun campione da prima linea (Tank o Fighter): attenzione agli ingaggi nemici.' },
     );
-  }
-
-  const enemyShare = draft ? magicShare(draft.enemyPicks, byId) : null;
-  if (enemyShare !== null) {
-    if (enemyShare > 0.65) {
-      insights.push({ level: 'info', text: `Il nemico ha molto danno magico (${pct(enemyShare)}): considera resistenza magica.` });
-    } else if (enemyShare < 0.35) {
-      insights.push({ level: 'info', text: `Il nemico ha molto danno fisico (${pct(1 - enemyShare)}): considera armatura.` });
-    }
   }
 
   return insights;

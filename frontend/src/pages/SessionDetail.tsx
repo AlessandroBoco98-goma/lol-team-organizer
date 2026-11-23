@@ -30,6 +30,7 @@ import Lobby from "../components/Lobby";
 import LiveCountdown from "../components/LiveCountdown";
 import DraftPanel from "../components/DraftPanel";
 import TeamStats from "../components/TeamStats";
+import CompProposals from "../components/CompProposals";
 
 export default function SessionDetail() {
   const { id } = useParams();
@@ -248,6 +249,8 @@ export default function SessionDetail() {
       </section>
 
       <TeamStats players={resolvedPlayers} />
+
+      {champions.length > 0 && <CompProposals session={session} players={resolvedPlayers} champions={champions} />}
 
       {champions.length > 0 && (
         <DraftPanel

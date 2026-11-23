@@ -27,21 +27,25 @@ const player = (name: string, role: SessionPlayer['role'], ids: string[]): Sessi
   champions: ids.map((id) => ({ id, name: id })),
 });
 
-const draft = (patch: Partial<Draft> = {}): Draft => ({ allyBans: [], enemyBans: [], enemyPicks: [], notes: '', ...patch });
+const draft = (patch: Partial<Draft> = {}): Draft => ({ allyBans: [], ...patch });
 const pick = (id: string) => ({ id, name: id });
 
 describe('blockReason / mainChampion', () => {
-  it('riconosce ban nostri, ban nemici e pick nemici', () => {
-    const d = draft({ allyBans: [pick('Zed')], enemyBans: [pick('Ahri')], enemyPicks: [pick('Lux')] });
+  it('riconosce i ban nostri', () => {
+    const d = draft({ allyBans: [pick('Zed')] });
     expect(blockReason('Zed', d)).toBe('ally-ban');
-    expect(blockReason('Ahri', d)).toBe('enemy-ban');
-    expect(blockReason('Lux', d)).toBe('enemy-pick');
     expect(blockReason('Garen', d)).toBeNull();
     expect(blockReason('Garen', undefined)).toBeNull();
   });
 
+  it('ignora i vecchi dati sui nemici eventualmente rimasti nel draft salvato', () => {
+    const legacy = { allyBans: [], enemyBans: [pick('Ahri')], enemyPicks: [pick('Lux')], notes: 'x' } as unknown as Draft;
+    expect(blockReason('Ahri', legacy)).toBeNull();
+    expect(blockReason('Lux', legacy)).toBeNull();
+  });
+
   it('il campione principale salta quelli non disponibili', () => {
-    const d = draft({ enemyBans: [pick('Ahri')] });
+    const d = draft({ allyBans: [pick('Ahri')] });
     expect(mainChampion(player('A', 'MID', ['Ahri', 'Syndra']), d)?.id).toBe('Syndra');
     expect(mainChampion(player('A', 'MID', ['Ahri']), d)).toBeUndefined();
   });
@@ -86,8 +90,8 @@ describe('analyzeComposition', () => {
     expect(analyzeComposition(squishy, champions).some((i) => i.level === 'warn' && i.text.includes('prima linea'))).toBe(true);
   });
 
-  it('avvisa quando un giocatore ha tutto il pool bannato o preso', () => {
-    const d = draft({ enemyBans: [pick('Garen')] });
+  it('avvisa quando un giocatore ha tutto il pool bannato', () => {
+    const d = draft({ allyBans: [pick('Garen')] });
     const r = analyzeComposition(full, champions, d);
     expect(r.some((i) => i.level === 'warn' && i.text.startsWith('A non ha campioni disponibili'))).toBe(true);
   });
@@ -97,13 +101,6 @@ describe('analyzeComposition', () => {
     const d = draft({ allyBans: [pick('Zed')] });
     // Zed bannato: il principale di A diventa Garen, quindi c'è prima linea
     expect(analyzeComposition(p, champions, d).some((i) => i.level === 'ok' && i.text.includes('prima linea'))).toBe(true);
-  });
-
-  it('commenta il danno dei pick nemici', () => {
-    const d = draft({ enemyPicks: [pick('Ahri'), pick('Lux'), pick('Syndra')] });
-    expect(analyzeComposition(full, champions, d).some((i) => i.text.includes('resistenza magica'))).toBe(true);
-    const d2 = draft({ enemyPicks: [pick('Zed'), pick('Jinx'), pick('Garen')] });
-    expect(analyzeComposition(full, champions, d2).some((i) => i.text.includes('armatura'))).toBe(true);
   });
 
   it('ignora i campioni con punteggi tutti a 0 (dati mancanti in Data Dragon)', () => {

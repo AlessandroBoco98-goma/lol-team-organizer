@@ -39,13 +39,22 @@ function assignRoles(candidates, lockedRoles = []) {
   return Object.fromEntries(candidates.map((c, i) => [c.playerId, best.picks[i]]));
 }
 
-// Fino a 3 campioni: prima i più giocati nel ruolo assegnato, poi i più giocati in assoluto
-function pickChampions(profile, role, max = MAX_PICKS) {
+// Fino a 3 campioni, in quest'ordine:
+// 1. i più giocati nel ruolo assegnato (partite recenti),
+// 2. quelli con più maestria che si giocano in quel ruolo (se i ruoli del campione sono noti),
+// 3. i più giocati in assoluto.
+// traits: { [championId]: { positions } } dai tratti dei campioni; senza, la maestria non è filtrata per ruolo.
+function pickChampions(profile, role, max = MAX_PICKS, traits) {
   const ids = [];
   const add = (id) => {
     if (ids.length < max && id && !ids.includes(id)) ids.push(id);
   };
+  const viable = (id) => {
+    const positions = traits?.[id]?.positions;
+    return !positions || positions.includes(role);
+  };
   for (const c of profile?.roles?.find((r) => r.role === role)?.champions ?? []) add(c.championId);
+  for (const m of [...(profile?.mastery ?? [])].sort((a, b) => b.points - a.points)) if (viable(m.championId)) add(m.championId);
   for (const c of profile?.champions ?? []) add(c.championId);
   return ids;
 }
@@ -64,8 +73,8 @@ function roleTakenBy({ rsvp = {}, voteRoles = {}, players = [] }, playerId, role
 
 const samePlayer = (p, voter) => (p.playerId ? p.playerId === voter.id : p.name === voter.name);
 
-function buildPlayer(voter, role, profile, nameOf, keepChampions) {
-  const champions = keepChampions ?? pickChampions(profile, role).map((id) => ({ id, name: nameOf(id) }));
+function buildPlayer(voter, role, profile, nameOf, keepChampions, traits) {
+  const champions = keepChampions ?? pickChampions(profile, role, MAX_PICKS, traits).map((id) => ({ id, name: nameOf(id) }));
   return {
     playerId: voter.id,
     name: voter.name,
@@ -86,7 +95,7 @@ const byRoleOrder = (a, b) => ROLES.indexOf(a.role) - ROLES.indexOf(b.role);
 // - profiles: { [playerId]: profilo Riot } per chi è stato possibile leggere
 // - nameOf: id campione -> nome da mostrare
 // Ritorna { players, withoutData }: withoutData sono i nomi dei giocatori senza dati Riot utilizzabili.
-function planComposition({ voters, voteRoles = {}, existing = [], profiles = {}, nameOf = (id) => id }) {
+function planComposition({ voters, voteRoles = {}, existing = [], profiles = {}, nameOf = (id) => id, traits }) {
   if (voters.length > ROLES.length) throw new Error('Più di 5 giocatori hanno confermato');
 
   // Ruolo scelto al voto, solo se valido e non scelto anche da un altro (in caso di doppione vale il primo)
@@ -122,7 +131,7 @@ function planComposition({ voters, voteRoles = {}, existing = [], profiles = {},
   const withoutData = [];
   const created = newcomers.map((v) => {
     const role = chosen[v.id] ?? assigned[v.id];
-    const player = buildPlayer(v, role, profiles[v.id], nameOf);
+    const player = buildPlayer(v, role, profiles[v.id], nameOf, undefined, traits);
     if (player.champions.length === 0) withoutData.push(v.name);
     return player;
   });
@@ -134,13 +143,13 @@ function planComposition({ voters, voteRoles = {}, existing = [], profiles = {},
 // - "Ci sono" con ruolo: entra (o cambia ruolo), con i campioni più giocati in quel ruolo;
 //   se il ruolo non è cambiato restano i campioni che aveva già
 // - altro voto: esce dalla squadra
-function applyVote({ existing = [], voter, isYes, role, profile, nameOf = (id) => id }) {
+function applyVote({ existing = [], voter, isYes, role, profile, nameOf = (id) => id, traits }) {
   const previous = existing.find((p) => samePlayer(p, voter));
   const rest = existing.filter((p) => !samePlayer(p, voter));
   if (!isYes) return { players: rest, withoutData: [] };
 
   const keep = previous && previous.role === role && previous.champions?.length > 0 ? previous.champions : undefined;
-  const player = buildPlayer(voter, role, profile, nameOf, keep);
+  const player = buildPlayer(voter, role, profile, nameOf, keep, traits);
   return { players: [...rest, player].sort(byRoleOrder), withoutData: player.champions.length === 0 ? [voter.name] : [] };
 }
 

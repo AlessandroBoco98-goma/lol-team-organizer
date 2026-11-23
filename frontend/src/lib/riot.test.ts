@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatRank, kdaRatio, recentForm, timeAgo, winRate } from './riot';
+import { formatDuration, formatPoints, formatRank, kdaRatio, recentForm, timeAgo, winRate } from './riot';
 
 describe('formatRank', () => {
   it('traduce la lega e aggiunge la divisione', () => {
@@ -28,6 +28,17 @@ describe('winRate / kdaRatio', () => {
     expect(kdaRatio(5, 2, 7)).toBe(6);
     expect(kdaRatio(4, 0, 6)).toBe(10);
     expect(kdaRatio(1, 3, 1)).toBe(0.67);
+  });
+});
+
+describe('formatPoints', () => {
+  it('accorcia i punti di maestria', () => {
+    expect(formatPoints(950)).toBe('950');
+    expect(formatPoints(1000)).toBe('1k');
+    expect(formatPoints(12400)).toBe('12,4k');
+    expect(formatPoints(312000)).toBe('312k');
+    expect(formatPoints(1250000)).toBe('1,25M');
+    expect(formatPoints(0)).toBe('0');
   });
 });
 
