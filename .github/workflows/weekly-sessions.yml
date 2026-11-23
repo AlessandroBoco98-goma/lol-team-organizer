@@ -1,0 +1,45 @@
+name: Weekly sessions
+
+# Ogni domenica crea le sessioni vuote (21:30) della settimana successiva, lunedì-domenica.
+# Il cron di GitHub è in UTC: 18:00 UTC sono le 19:00 (inverno) o le 20:00 (estate) a Roma,
+# sempre di domenica, quindi il "prossimo lunedì" calcolato dal backend è il giorno dopo.
+on:
+  schedule:
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  generate-week:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Generate next week's sessions
+        env:
+          # Il secret passa da una variabile d'ambiente e non dentro il comando: non può alterare lo script
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${CRON_SECRET}" ]; then
+            echo "::error::Il secret CRON_SECRET non è impostato nel repository (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+
+          # Il piano gratuito di Render si sospende: la prima richiesta può essere lenta, quindi timeout lungo e due nuovi tentativi
+          status=$(curl --silent --show-error \
+            --max-time 180 --retry 2 --retry-delay 30 \
+            --output response.json --write-out '%{http_code}' \
+            -X POST \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            https://lol-team-organizer.onrender.com/api/sessions/generate-week)
+
+          echo "HTTP status: ${status}"
+          cat response.json
+          echo
+
+          if [ "${status}" != "200" ]; then
+            echo "::error::Atteso HTTP 200, ricevuto ${status}"
+            exit 1
+          fi

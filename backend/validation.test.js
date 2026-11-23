@@ -37,6 +37,18 @@ test('validateSession: una sessione senza giocatori è valida (si compone dopo, 
   assert.deepEqual(sessionFields(baseSession([])).players, []);
 });
 
+test('validateSession: un giocatore senza campioni è valido (si scelgono dopo)', () => {
+  assert.equal(validateSession(baseSession([{ ...basePlayer, champions: [] }])), null);
+  assert.deepEqual(sessionFields(baseSession([{ ...basePlayer, champions: [] }])).players[0].champions, []);
+});
+
+test('validateSession: il massimo di 3 campioni per giocatore resta', () => {
+  const four = ['A', 'B', 'C', 'D'].map((id) => ({ id, name: id }));
+  const three = four.slice(0, 3);
+  assert.ok(validateSession(baseSession([{ ...basePlayer, champions: four }])));
+  assert.equal(validateSession(baseSession([{ ...basePlayer, champions: three }])), null);
+});
+
 test('validateSession: accetta playerId, riotId e regione', () => {
   const p = { ...basePlayer, playerId: 'abc', riotId: 'Faker#KR1', region: 'KR' };
   assert.equal(validateSession(baseSession([p])), null);

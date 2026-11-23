@@ -1,10 +1,12 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 const { createRiotService } = require('./riot');
+const { WEEK_SESSION_TIME, nextWeekDates, planWeek, weekSessionId } = require('./weekly');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const app = express();
@@ -14,9 +16,11 @@ const TEAM_PASSWORD = process.env.TEAM_PASSWORD;
 app.use(cors());
 app.use(express.json());
 
-// Letture pubbliche; ogni modifica richiede la password del team
+// Letture pubbliche; ogni modifica richiede la password del team.
+// Unica eccezione: la generazione settimanale, chiamata dal cron e protetta da CRON_SECRET (vedi sotto).
 app.use('/api', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'OPTIONS') return next();
+  if (req.method === 'POST' && req.path === '/sessions/generate-week') return next();
   if (!TEAM_PASSWORD) return res.status(500).json({ error: 'TEAM_PASSWORD non configurata sul server' });
   if (req.get('x-team-password') !== TEAM_PASSWORD) return res.status(401).json({ error: 'Password non valida' });
   next();
@@ -74,6 +78,46 @@ app.post('/api/sessions', async (req, res) => {
   const data = { ...sessionFields(req.body), createdAt: new Date().toISOString() };
   const docRef = await sessionsRef.add(data);
   res.status(201).json({ id: docRef.id, ...data });
+});
+
+// Confronto di segreti a tempo costante (si confrontano gli hash, quindi la lunghezza non conta)
+function secretsMatch(provided, expected) {
+  const hash = (s) => crypto.createHash('sha256').update(String(s ?? '')).digest();
+  return crypto.timingSafeEqual(hash(provided), hash(expected));
+}
+
+// Crea le sessioni vuote (21:30) di tutta la prossima settimana, lunedì-domenica, fuso Europe/Rome.
+// Chiamata dal cron di GitHub Actions con l'header x-cron-secret; NON usa la password del team.
+// Idempotente: una data che ha già una sessione alla stessa ora viene saltata.
+app.post('/api/sessions/generate-week', async (req, res) => {
+  const cronSecret = process.env.CRON_SECRET;
+  if (!cronSecret) return res.status(500).json({ error: 'CRON_SECRET non configurata sul server' });
+  if (!secretsMatch(req.get('x-cron-secret'), cronSecret)) return res.status(401).json({ error: 'Secret non valido' });
+
+  const dates = nextWeekDates();
+  const snapshot = await sessionsRef.where('date', 'in', dates).get();
+  const existing = snapshot.docs.map((doc) => ({ date: doc.get('date'), time: doc.get('time') }));
+  const { toCreate, skipped } = planWeek(dates, existing, WEEK_SESSION_TIME);
+
+  let created = 0;
+  let skippedCount = skipped.length;
+  const createdAt = new Date().toISOString();
+  for (const date of toCreate) {
+    const data = {
+      ...sessionFields({ date, time: WEEK_SESSION_TIME, players: [], notes: '' }),
+      createdAt,
+    };
+    try {
+      // create() fallisce se l'id esiste già: protegge da due esecuzioni in contemporanea
+      await sessionsRef.doc(weekSessionId(date, WEEK_SESSION_TIME)).create(data);
+      created += 1;
+    } catch (error) {
+      if (error.code !== 6) throw error; // 6 = ALREADY_EXISTS
+      skippedCount += 1;
+    }
+  }
+
+  res.json({ created, skipped: skippedCount, dates });
 });
 
 app.put('/api/sessions/:id', async (req, res) => {

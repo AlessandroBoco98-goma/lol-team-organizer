@@ -90,13 +90,13 @@ export default function SessionForm() {
   const isValid =
     !!date &&
     !!time &&
-    players.every((p) => p.name && p.champions.length >= 1) &&
+    players.every((p) => p.name) &&
     new Set(players.map((p) => p.role)).size === players.length;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) {
-      toast.warning("Ogni giocatore aggiunto ha bisogno di un nome, di un ruolo diverso dagli altri e di almeno un campione.");
+      toast.warning("Ogni giocatore aggiunto ha bisogno di un nome e di un ruolo diverso dagli altri.");
       return;
     }
     // Allinea nomi e Riot ID dei giocatori ai dati attuali del roster prima di salvare
