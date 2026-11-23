@@ -1,6 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { romeToday, nextWeekDates, planWeek, weekSessionId, WEEK_SESSION_TIME } = require('./weekly');
+const {
+  romeToday,
+  nextWeekDates,
+  nextWorkweekDates,
+  countYes,
+  shouldConfirm,
+  CONFIRM_THRESHOLD,
+  planWeek,
+  weekSessionId,
+  WEEK_SESSION_TIME,
+} = require('./weekly');
 
 const MON_TO_SUN = (monday) => {
   const [y, m, d] = monday.split('-').map(Number);
@@ -62,6 +72,36 @@ test('planWeek: senza sessioni esistenti crea tutto, con tutto già presente non
   assert.equal(planWeek(dates, []).toCreate.length, 7);
   const all = dates.map((date) => ({ date, time: WEEK_SESSION_TIME }));
   assert.deepEqual(planWeek(dates, all), { toCreate: [], skipped: dates });
+});
+
+test('nextWorkweekDates: solo da lunedì a venerdì', () => {
+  const dates = nextWorkweekDates(new Date('2026-11-22T18:00:00Z'));
+  assert.deepEqual(dates, ['2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27']);
+  assert.equal(new Date(`${dates[0]}T12:00:00Z`).getUTCDay(), 1);
+  assert.equal(new Date(`${dates[4]}T12:00:00Z`).getUTCDay(), 5);
+});
+
+test('countYes: conta solo i "Ci sono"', () => {
+  assert.equal(countYes(undefined), 0);
+  assert.equal(countYes({}), 0);
+  assert.equal(countYes({ a: 'yes', b: 'maybe', c: 'no', d: 'yes' }), 2);
+});
+
+test('shouldConfirm: la proposta diventa sessione vera alla soglia', () => {
+  assert.equal(CONFIRM_THRESHOLD, 3);
+  assert.equal(shouldConfirm('proposal', { a: 'yes', b: 'yes' }), false);
+  assert.equal(shouldConfirm('proposal', { a: 'yes', b: 'yes', c: 'yes' }), true);
+  assert.equal(shouldConfirm('proposal', { a: 'yes', b: 'yes', c: 'yes', d: 'yes' }), true);
+});
+
+test('shouldConfirm: "forse" e "non ci sono" non contano', () => {
+  assert.equal(shouldConfirm('proposal', { a: 'yes', b: 'yes', c: 'maybe', d: 'no' }), false);
+});
+
+test('shouldConfirm: sessioni già confermate o create a mano non cambiano', () => {
+  const votes = { a: 'yes', b: 'yes', c: 'yes' };
+  assert.equal(shouldConfirm('confirmed', votes), false);
+  assert.equal(shouldConfirm(undefined, votes), false);
 });
 
 test('weekSessionId: id stabile per data e ora', () => {

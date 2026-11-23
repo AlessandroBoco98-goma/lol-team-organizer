@@ -10,6 +10,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard"));
 const SessionForm = lazy(() => import("./pages/SessionForm"));
 const SessionDetail = lazy(() => import("./pages/SessionDetail"));
 const Players = lazy(() => import("./pages/Players"));
+const Vote = lazy(() => import("./pages/Vote"));
 
 const loadMotionFeatures = () => import("./lib/motionFeatures").then((m) => m.default);
 
@@ -25,6 +26,7 @@ function AnimatedRoutes() {
           <Route path="/edit/:id" element={<SessionForm />} />
           <Route path="/session/:id" element={<SessionDetail />} />
           <Route path="/players" element={<Players />} />
+          <Route path="/vota" element={<Vote />} />
         </Routes>
       </Suspense>
     </div>

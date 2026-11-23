@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, Champion, Draft, Player, Region, RiotProfile, RsvpStatus } from '../types';
+import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, Region, RiotProfile, RsvpStatus } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -69,8 +69,15 @@ export const updateSession = async (id: string, sessionData: SessionInput): Prom
 };
 
 // status null annulla la risposta del giocatore
-export const setRsvp = async (sessionId: string, playerId: string, status: RsvpStatus | null): Promise<void> => {
-  await api.put(`/api/sessions/${sessionId}/rsvp`, { playerId, status });
+export interface RsvpResult {
+  // true se questo voto ha portato una proposta alle conferme necessarie e l'ha resa una sessione vera
+  confirmedNow: boolean;
+  sessionStatus: SessionStatus;
+}
+
+export const setRsvp = async (sessionId: string, playerId: string, status: RsvpStatus | null): Promise<RsvpResult> => {
+  const response = await api.put(`/api/sessions/${sessionId}/rsvp`, { playerId, status });
+  return { confirmedNow: !!response.data.confirmedNow, sessionStatus: response.data.sessionStatus ?? 'confirmed' };
 };
 
 export const setDraft = async (sessionId: string, draft: Draft): Promise<Draft> => {

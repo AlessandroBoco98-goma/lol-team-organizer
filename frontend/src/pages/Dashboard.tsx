@@ -4,15 +4,17 @@ import { Link } from "react-router-dom";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 import { toast } from "sonner";
-import { CalendarPlus, Clock, Eye, Pencil, Swords, Trash2 } from "lucide-react";
+import { ArrowRight, CalendarPlus, Clock, Eye, ListChecks, Pencil, Swords, Trash2 } from "lucide-react";
 import { getSessions, deleteSession, getPlayers } from "../lib/api";
-import { ROLE_COLORS, ROLE_LABELS, type Session } from "../types";
+import { CONFIRM_THRESHOLD, ROLE_COLORS, ROLE_LABELS, type Session } from "../types";
 import { championIcon } from "../lib/ddragon";
 import {
   countdownLabel,
   dateBadge,
   formatTime,
   isPastSession,
+  isProposal,
+  votingSessions,
   googleCalendarUrl,
   lobbySlots,
   resolveSessionPlayer,
@@ -61,12 +63,16 @@ export default function Dashboard() {
   // Il roster serve solo ad aggiornare i nomi e le risposte: se non carica si usano i dati salvati nelle sessioni
   const { data: teamPlayers = [] } = useQuery({ queryKey: ["players"], queryFn: getPlayers });
 
-  const { upcoming, past } = useMemo(() => {
+  // Le proposte della votazione non sono sessioni: stanno nella pagina "Votazione" finché non arrivano alle conferme
+  const { upcoming, past, realCount, openVotes } = useMemo(() => {
     const byStart = (a: Session, b: Session) =>
       new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime();
+    const real = sessions.filter((s) => !isProposal(s));
     return {
-      upcoming: sessions.filter((s) => !isPastSession(s)).sort(byStart),
-      past: sessions.filter(isPastSession).sort((a, b) => byStart(b, a)),
+      upcoming: real.filter((s) => !isPastSession(s)).sort(byStart),
+      past: real.filter(isPastSession).sort((a, b) => byStart(b, a)),
+      realCount: real.length,
+      openVotes: votingSessions(sessions).filter(isProposal).length,
     };
   }, [sessions]);
 
@@ -87,7 +93,7 @@ export default function Dashboard() {
   const next = upcoming[0];
   const base = tab === "upcoming" ? upcoming : tab === "past" ? past : [...upcoming, ...past];
   const visible = base.filter((s) => s.id !== next?.id);
-  const counts = { upcoming: upcoming.length, past: past.length, all: sessions.length };
+  const counts = { upcoming: upcoming.length, past: past.length, all: realCount };
   const showEmpty = !isLoading && visible.length === 0 && !(next && tab !== "past");
 
   return (
@@ -99,6 +105,23 @@ export default function Dashboard() {
           <p className="mt-3 text-lol-mist">Le sessioni del team, in ordine di data.</p>
         </div>
       </header>
+
+      {openVotes > 0 && (
+        <Link to="/vota" className="panel panel-hover flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <ListChecks size={22} className="text-lol-gold" aria-hidden />
+            <div>
+              <p className="font-display text-xl font-bold leading-tight">Votazione della settimana aperta</p>
+              <p className="text-sm text-lol-mist">
+                {openVotes === 1 ? "1 giorno" : `${openVotes} giorni`} da votare. Con {CONFIRM_THRESHOLD} conferme nasce la sessione.
+              </p>
+            </div>
+          </div>
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-lol-gold">
+            Vota i giorni <ArrowRight size={15} aria-hidden />
+          </span>
+        </Link>
+      )}
 
       {next && <NextMatchHero session={next} teamPlayers={teamPlayers} />}
 

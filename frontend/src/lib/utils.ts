@@ -27,6 +27,18 @@ export function todayISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Proposta della votazione settimanale: non è ancora una sessione e non va nel calendario
+export function isProposal(s: Pick<Session, 'status'>): boolean {
+  return s.status === 'proposal';
+}
+
+// Giorni della votazione ancora da vivere (proposte e sessioni nate da una proposta), in ordine di data
+export function votingSessions(sessions: Session[], now: Date = new Date()): Session[] {
+  return sessions
+    .filter((s) => s.source === 'weekly' && new Date(`${s.date}T${s.time}:00`) >= now)
+    .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+}
+
 // Giorno, mese e giorno della settimana abbreviati per il badge data delle card
 export function dateBadge(dateString: string): { day: string; month: string; weekday: string } {
   const d = new Date(`${dateString}T12:00:00`);
@@ -35,6 +47,17 @@ export function dateBadge(dateString: string): { day: string; month: string; wee
     month: d.toLocaleDateString('it-IT', { month: 'short' }).replace('.', ''),
     weekday: d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', ''),
   };
+}
+
+// "lunedì", "martedì"...
+export function weekdayName(dateString: string): string {
+  return new Date(`${dateString}T12:00:00`).toLocaleDateString('it-IT', { weekday: 'long' });
+}
+
+// Link che apre WhatsApp con l'invito a votare i giorni della settimana
+export function voteInviteUrl(origin: string, threshold: number): string {
+  const text = `🗳️ Votazione della settimana: segna i giorni in cui ci sei. Con ${threshold} conferme creiamo la sessione.\n${origin}/vota`;
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
 // Tempo che manca alla sessione ("tra 2 ore", "Domani", "tra 5 giorni") o il suo stato se è già iniziata.

@@ -1,5 +1,5 @@
 import { Link, NavLink } from "react-router-dom";
-import { CalendarDays, Plus, Users } from "lucide-react";
+import { CalendarDays, ListChecks, Plus, Users } from "lucide-react";
 import { btnPrimary } from "../lib/styles";
 
 // Marchio: un esagono ottone con le iniziali, richiamo del reticolo dell'hero
@@ -41,6 +41,15 @@ export default function Navbar() {
               <>
                 <CalendarDays size={16} aria-hidden />
                 <span className="hidden sm:inline">Calendario</span>
+                <span className={underline(isActive)} />
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/vota" className={linkClass}>
+            {({ isActive }) => (
+              <>
+                <ListChecks size={16} aria-hidden />
+                <span className="hidden sm:inline">Votazione</span>
                 <span className={underline(isActive)} />
               </>
             )}

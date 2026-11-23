@@ -1,27 +1,14 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { setRsvp } from "../lib/api";
 import { CalendarCheck, Check, Clock, MessageCircle, X } from "lucide-react";
-import { toast } from "sonner";
-import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type RsvpStatus, type Session } from "../types";
+import { RSVP_COLORS, RSVP_LABELS, RSVP_STATUSES, type Player, type Session } from "../types";
 import { rsvpCounts, sessionInviteText, whatsappChatUrl } from "../lib/utils";
 import { label, input, panel, sectionTitle } from "../lib/styles";
-
-const ME_KEY = "lol-team-me";
-
-function readMe(): string {
-  try {
-    return localStorage.getItem(ME_KEY) ?? "";
-  } catch {
-    return "";
-  }
-}
+import { useMe } from "../lib/me";
+import { useRsvpMutation } from "../lib/useRsvp";
 
 // Riepilogo delle risposte e, per le sessioni future, i pulsanti per rispondere.
 // Non ci sono account: ognuno sceglie "Chi sei?" e la scelta resta nel suo browser.
 export default function RsvpPanel({ session, teamPlayers, past }: { session: Session; teamPlayers: Player[]; past: boolean }) {
-  const queryClient = useQueryClient();
-  const [me, setMe] = useState(readMe);
+  const [me, chooseMe] = useMe();
 
   // Rispondono tutti i giocatori del roster, anche se non sono ancora nella composizione
   const meCandidate = teamPlayers.find((p) => p.id === me);
@@ -29,24 +16,7 @@ export default function RsvpPanel({ session, teamPlayers, past }: { session: Ses
   const pending = teamPlayers.filter((p) => !session.rsvp?.[p.id]);
   const current = meCandidate ? session.rsvp?.[meCandidate.id] : undefined;
 
-  const mutation = useMutation({
-    mutationFn: ({ playerId, status }: { playerId: string; status: RsvpStatus | null }) =>
-      setRsvp(session.id, playerId, status),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["session", session.id] });
-      queryClient.invalidateQueries({ queryKey: ["sessions"] });
-    },
-    onError: () => toast.error("La risposta non è stata salvata. Controlla la password del team."),
-  });
-
-  const chooseMe = (playerId: string) => {
-    setMe(playerId);
-    try {
-      localStorage.setItem(ME_KEY, playerId);
-    } catch {
-      // senza localStorage la scelta vale solo finché la pagina resta aperta
-    }
-  };
+  const mutation = useRsvpMutation(session.id);
 
   // Per le sessioni passate il riepilogo sta già nell'intestazione e non si può più rispondere
   if (teamPlayers.length === 0 || past) return null;

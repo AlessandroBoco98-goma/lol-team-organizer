@@ -6,7 +6,7 @@ const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 const { createRiotService } = require('./riot');
-const { WEEK_SESSION_TIME, nextWeekDates, planWeek, weekSessionId } = require('./weekly');
+const { WEEK_SESSION_TIME, nextWorkweekDates, planWeek, shouldConfirm, weekSessionId } = require('./weekly');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
 const app = express();
@@ -86,7 +86,9 @@ function secretsMatch(provided, expected) {
   return crypto.timingSafeEqual(hash(provided), hash(expected));
 }
 
-// Crea le sessioni vuote (21:30) di tutta la prossima settimana, lunedì-domenica, fuso Europe/Rome.
+// Crea le PROPOSTE (21:30) della prossima settimana, da lunedì a venerdì, fuso Europe/Rome.
+// Una proposta non è ancora una sessione: sta nella pagina di votazione e non compare nel calendario
+// finché non arriva alle conferme necessarie (vedi la rotta rsvp).
 // Chiamata dal cron di GitHub Actions con l'header x-cron-secret; NON usa la password del team.
 // Idempotente: una data che ha già una sessione alla stessa ora viene saltata.
 app.post('/api/sessions/generate-week', async (req, res) => {
@@ -94,7 +96,7 @@ app.post('/api/sessions/generate-week', async (req, res) => {
   if (!cronSecret) return res.status(500).json({ error: 'CRON_SECRET non configurata sul server' });
   if (!secretsMatch(req.get('x-cron-secret'), cronSecret)) return res.status(401).json({ error: 'Secret non valido' });
 
-  const dates = nextWeekDates();
+  const dates = nextWorkweekDates();
   const snapshot = await sessionsRef.where('date', 'in', dates).get();
   const existing = snapshot.docs.map((doc) => ({ date: doc.get('date'), time: doc.get('time') }));
   const { toCreate, skipped } = planWeek(dates, existing, WEEK_SESSION_TIME);
@@ -105,6 +107,8 @@ app.post('/api/sessions/generate-week', async (req, res) => {
   for (const date of toCreate) {
     const data = {
       ...sessionFields({ date, time: WEEK_SESSION_TIME, players: [], notes: '' }),
+      status: 'proposal',
+      source: 'weekly',
       createdAt,
     };
     try {
@@ -128,15 +132,31 @@ app.put('/api/sessions/:id', async (req, res) => {
   res.json({ id: req.params.id, ...data });
 });
 
-// Risposta di disponibilità di un giocatore (rsvp.<playerId>); non tocca gli altri campi della sessione
+// Risposta di disponibilità di un giocatore (rsvp.<playerId>); non tocca gli altri campi della sessione.
+// Se la sessione è una proposta e con questo voto i "Ci sono" arrivano alla soglia, diventa una sessione vera
+// (status: 'confirmed'). Lettura e scrittura stanno in una transazione: due voti insieme non si perdono.
 app.put('/api/sessions/:id/rsvp', async (req, res) => {
   const parsed = parseRsvp(req.body);
   if (parsed.error) return res.status(400).json({ error: parsed.error });
   const ref = sessionsRef.doc(req.params.id);
-  const doc = await ref.get();
-  if (!doc.exists) return res.status(404).json({ error: 'Not found' });
-  await ref.update(new FieldPath('rsvp', parsed.playerId), parsed.status ?? FieldValue.delete());
-  res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status });
+
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const data = snap.data();
+    const rsvp = { ...(data.rsvp ?? {}) };
+    if (parsed.status) rsvp[parsed.playerId] = parsed.status;
+    else delete rsvp[parsed.playerId];
+
+    const confirmedNow = shouldConfirm(data.status, rsvp);
+    const fields = [new FieldPath('rsvp', parsed.playerId), parsed.status ?? FieldValue.delete()];
+    if (confirmedNow) fields.push('status', 'confirmed', 'confirmedAt', new Date().toISOString());
+    tx.update(ref, ...fields);
+    return { confirmedNow, sessionStatus: confirmedNow ? 'confirmed' : (data.status ?? 'confirmed') };
+  });
+
+  if (!result) return res.status(404).json({ error: 'Not found' });
+  res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status, ...result });
 });
 
 // Draft (ban, pick nemici, note): si salva a parte per non toccare la composizione né le risposte

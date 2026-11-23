@@ -112,6 +112,11 @@ export interface Draft {
   notes: string;
 }
 
+// Conferme ("Ci sono") necessarie perché un giorno proposto diventi una sessione vera; uguale a CONFIRM_THRESHOLD del backend
+export const CONFIRM_THRESHOLD = 3;
+
+export type SessionStatus = 'proposal' | 'confirmed';
+
 export type RsvpStatus = 'yes' | 'maybe' | 'no';
 
 export const RSVP_STATUSES: RsvpStatus[] = ['yes', 'maybe', 'no'];
@@ -138,6 +143,11 @@ export interface Session {
   rsvp?: Record<string, RsvpStatus>;
   // Ban, pick nemici e note; opzionale, assente nelle sessioni vecchie
   draft?: Draft;
+  // 'proposal': giorno proposto dalla votazione settimanale, non ancora nel calendario.
+  // Assente o 'confirmed': sessione vera (create a mano, o proposte che hanno raggiunto le conferme).
+  status?: SessionStatus;
+  // 'weekly' per i giorni creati dalla generazione settimanale
+  source?: 'weekly';
   createdAt: string;
   updatedAt?: string;
 }

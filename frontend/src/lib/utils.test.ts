@@ -5,6 +5,10 @@ import {
   lobbySlots,
   dateBadge,
   findTeamPlayer,
+  isProposal,
+  votingSessions,
+  weekdayName,
+  voteInviteUrl,
   normalizePhone,
   opggUrl,
   playersFromRsvp,
@@ -15,7 +19,7 @@ import {
   whatsappChatUrl,
   whatsappShareUrl,
 } from './utils';
-import type { Player, SessionPlayer } from '../types';
+import type { Player, Session, SessionPlayer } from '../types';
 
 describe('opggUrl', () => {
   it('costruisce l\'URL con regione minuscola', () => {
@@ -109,6 +113,48 @@ describe('playersFromRsvp', () => {
     expect(playersFromRsvp({ players: [], rsvp }, big)).toBeNull();
     const five = Object.fromEntries(big.slice(0, 5).map((p) => [p.id, 'yes' as const]));
     expect(playersFromRsvp({ players: [], rsvp: five }, big)).toHaveLength(5);
+  });
+});
+
+describe('isProposal / votingSessions', () => {
+  const s = (patch: Partial<Session>): Session => ({
+    id: 'x', date: '2026-12-01', time: '21:30', players: [], notes: '', createdAt: '', ...patch,
+  });
+  const now = new Date('2026-11-30T12:00:00');
+
+  it('solo lo stato "proposal" è una proposta', () => {
+    expect(isProposal(s({ status: 'proposal' }))).toBe(true);
+    expect(isProposal(s({ status: 'confirmed' }))).toBe(false);
+    expect(isProposal(s({}))).toBe(false); // sessioni create a mano o vecchie
+  });
+
+  it('la votazione include le proposte e le confermate nate da lì, non le sessioni a mano', () => {
+    const list = [
+      s({ id: 'a', date: '2026-12-02', source: 'weekly', status: 'confirmed' }),
+      s({ id: 'b', date: '2026-12-01', source: 'weekly', status: 'proposal' }),
+      s({ id: 'm', date: '2026-12-01' }), // a mano
+    ];
+    expect(votingSessions(list, now).map((x) => x.id)).toEqual(['b', 'a']);
+  });
+
+  it('esclude i giorni già passati', () => {
+    const list = [s({ id: 'old', date: '2026-11-29', source: 'weekly', status: 'proposal' }), s({ id: 'ok', source: 'weekly', status: 'proposal' })];
+    expect(votingSessions(list, now).map((x) => x.id)).toEqual(['ok']);
+  });
+});
+
+describe('weekdayName / voteInviteUrl', () => {
+  it('dà il nome esteso del giorno', () => {
+    expect(weekdayName('2026-11-30')).toBe('lunedì');
+    expect(weekdayName('2026-12-04')).toBe('venerdì');
+  });
+
+  it('il messaggio rimanda alla pagina di votazione e cita la soglia', () => {
+    const url = voteInviteUrl('https://lol.example.com', 3);
+    expect(url.startsWith('https://wa.me/?text=')).toBe(true);
+    const text = decodeURIComponent(url.split('text=')[1]);
+    expect(text).toContain('https://lol.example.com/vota');
+    expect(text).toContain('3 conferme');
   });
 });
 

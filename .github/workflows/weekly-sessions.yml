@@ -1,6 +1,7 @@
 name: Weekly sessions
 
-# Ogni domenica crea le sessioni vuote (21:30) della settimana successiva, lunedì-domenica.
+# Ogni domenica crea i giorni da votare (proposte alle 21:30) della settimana successiva, da lunedì a venerdì.
+# Un giorno diventa una sessione vera, visibile nel calendario, quando raggiunge le conferme necessarie.
 # Il cron di GitHub è in UTC: 18:00 UTC sono le 19:00 (inverno) o le 20:00 (estate) a Roma,
 # sempre di domenica, quindi il "prossimo lunedì" calcolato dal backend è il giorno dopo.
 on:
