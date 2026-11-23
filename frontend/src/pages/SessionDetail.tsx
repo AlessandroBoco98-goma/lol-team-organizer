@@ -3,9 +3,9 @@ import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarPlus, Clock, ExternalLink, MessageCircle, Pencil, Sparkles, StickyNote, Swords, Trash2 } from "lucide-react";
-import { getSession, deleteSession, getPlayers, updateSession, getChampions } from "../lib/api";
+import { getSession, deleteSession, getPlayers, autofillSession, apiErrorMessage, getChampions } from "../lib/api";
 import { blockReason, BLOCK_LABELS } from "../lib/composition";
-import { ROLES, ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS, type SessionPlayer } from "../types";
+import { ROLE_COLORS, ROLE_LABELS, RSVP_COLORS, RSVP_LABELS } from "../types";
 import { championIcon } from "../lib/ddragon";
 import {
   countdownLabel,
@@ -17,7 +17,6 @@ import {
   resolveSessionPlayer,
   rsvpOf,
   rsvpCounts,
-  playersFromRsvp,
   probuildUrl,
   whatsappShareUrl,
 } from "../lib/utils";
@@ -40,6 +39,12 @@ export default function SessionDetail() {
     queryKey: ["session", id],
     queryFn: () => getSession(id!),
     enabled: !!id,
+    // Appena confermata, la squadra viene compilata dal server in pochi secondi: finché è vuota si ricontrolla
+    refetchInterval: (query) => {
+      const s = query.state.data;
+      const justConfirmed = s?.confirmedAt && Date.now() - Date.parse(s.confirmedAt) < 90_000;
+      return s && s.players.length === 0 && justConfirmed ? 4000 : false;
+    },
   });
 
   // Il roster aggiorna nome, Riot ID e regione; se non carica restano i dati salvati nella sessione
@@ -50,16 +55,21 @@ export default function SessionDetail() {
     queryFn: () => getChampions(undefined, "it_IT"),
   });
 
+  // Compila la squadra con chi ha votato sì: ruolo abituale e campioni più giocati dall'account Riot collegato
   const composeMutation = useMutation({
-    mutationFn: (players: SessionPlayer[]) =>
-      updateSession(id!, { date: session!.date, time: session!.time, notes: session!.notes, players }),
-    onSuccess: () => {
+    mutationFn: () => autofillSession(id!),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["session", id] });
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
-      // Ruoli e campioni vanno scelti nel form di modifica
-      navigate(`/edit/${id}`);
+      if (!result.riotEnabled) {
+        toast.warning("Squadra compilata senza campioni: le statistiche Riot non sono attive sul server.");
+      } else if (result.withoutData.length > 0) {
+        toast.warning(`Squadra compilata. Nessun dato Riot per ${result.withoutData.join(", ")}: controlla Riot ID e regione.`);
+      } else {
+        toast.success("Squadra compilata con i pick più giocati");
+      }
     },
-    onError: () => toast.error("I giocatori non sono stati impostati. Controlla la password del team."),
+    onError: (e) => toast.error(apiErrorMessage(e, "La squadra non è stata compilata. Controlla la password del team.")),
   });
 
   if (isLoading) return <LoadingSpinner />;
@@ -71,15 +81,13 @@ export default function SessionDetail() {
   const label = countdownLabel(session);
 
   const handleCompose = () => {
-    const composed = playersFromRsvp(session, teamPlayers);
-    if (!composed) {
-      toast.warning(`Hanno confermato in ${yesCount}, ma i ruoli sono ${ROLES.length}: scegli la squadra da "Modifica".`);
+    if (
+      session.players.length > 0 &&
+      !confirm('Ricompilare la squadra con chi ha votato "Ci sono"? Chi ha votato sì resta com\'è, chi non ha votato sì viene tolto.')
+    ) {
       return;
     }
-    if (session.players.length > 0 && !confirm('Sostituire la composizione con chi ha risposto "Ci sono"? Chi non c\'è verrà tolto dalla sessione.')) {
-      return;
-    }
-    composeMutation.mutate(composed);
+    composeMutation.mutate();
   };
 
   const handleDelete = async () => {
@@ -143,14 +151,14 @@ export default function SessionDetail() {
           {!past && yesCount > 0 && (
             <button type="button" onClick={handleCompose} disabled={composeMutation.isPending} className={btnGhost}>
               <Sparkles size={15} aria-hidden />
-              {composeMutation.isPending ? "Imposto..." : `Imposta dai "Ci sono" (${yesCount})`}
+              {composeMutation.isPending ? "Cerco i pick..." : `Compila dai "Ci sono" (${yesCount})`}
             </button>
           )}
         </div>
         {session.players.length === 0 && (
           <div className="panel p-8 text-center text-sm text-lol-mist">
-            Nessun giocatore ancora. Condividi la sessione su WhatsApp e, quando hanno risposto, imposta la squadra
-            dai "Ci sono".
+            Nessun giocatore ancora. Quando qualcuno conferma, la squadra si compila con il ruolo abituale e i campioni
+            più giocati di chi ha votato "Ci sono". Puoi anche avviarla a mano dal pulsante qui sopra.
           </div>
         )}
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

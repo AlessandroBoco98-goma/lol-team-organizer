@@ -12,7 +12,7 @@ export function useRsvpMutation(sessionId: string) {
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
-      if (result.confirmedNow) toast.success(`Con ${CONFIRM_THRESHOLD} conferme la sessione è stata creata`);
+      if (result.confirmedNow) toast.success(`Con ${CONFIRM_THRESHOLD} conferme la sessione è stata creata: sto compilando la squadra`);
     },
     onError: () => toast.error("La risposta non è stata salvata. Controlla la password del team."),
   });

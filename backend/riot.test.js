@@ -81,6 +81,19 @@ test('summarizeMatches: statistiche per campione con build e keystone più frequ
   assert.equal(r.champions[0].championId, 'Jinx'); // il più giocato per primo
 });
 
+test('summarizeMatches: ruoli e campioni per ruolo, con i ruoli dell\'app', () => {
+  const r = summarizeMatches(PUUID, [
+    match('EUW1_1', {}), // Jinx BOTTOM
+    match('EUW1_2', {}), // Jinx BOTTOM
+    match('EUW1_3', { championName: 'Ashe' }), // Ashe BOTTOM
+    match('EUW1_4', { championName: 'Lulu', teamPosition: 'UTILITY' }),
+    match('EUW1_5', { championName: 'Ahri', teamPosition: 'MIDDLE' }),
+    match('EUW1_6', { championName: 'Zed', teamPosition: '' }), // ruolo sconosciuto: non conta
+  ]);
+  assert.deepEqual(r.roles.map((x) => [x.role, x.games]), [['ADC', 3], ['MID', 1], ['SUPPORT', 1]]);
+  assert.deepEqual(r.roles[0].champions, [{ championId: 'Jinx', games: 2 }, { championId: 'Ashe', games: 1 }]);
+});
+
 test('summarizeMatches: ignora partite senza il giocatore o malformate e gestisce durate in millisecondi', () => {
   const r = summarizeMatches(PUUID, [null, {}, { info: { gameMode: 'CLASSIC', participants: [] } }, match('EUW1_5', {}, { gameDuration: 1800000 })]);
   assert.equal(r.gamesAnalyzed, 1);

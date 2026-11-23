@@ -148,6 +148,8 @@ export interface Session {
   status?: SessionStatus;
   // 'weekly' per i giorni creati dalla generazione settimanale
   source?: 'weekly';
+  // Quando la proposta è diventata sessione vera (ISO)
+  confirmedAt?: string;
   createdAt: string;
   updatedAt?: string;
 }

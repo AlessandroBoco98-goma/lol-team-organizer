@@ -30,6 +30,9 @@ const normalizeChampionName = (name) => CHAMPION_NAME_FIXES[name] ?? name;
 
 const QUEUE_KEYS = { RANKED_SOLO_5x5: 'solo', RANKED_FLEX_SR: 'flex' };
 
+// Ruoli di Match-V5 (teamPosition) -> ruoli dell'app
+const APP_ROLES = { TOP: 'TOP', JUNGLE: 'JUNGLE', MIDDLE: 'MID', BOTTOM: 'ADC', UTILITY: 'SUPPORT' };
+
 function mostCommon(values) {
   const counts = new Map();
   for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
@@ -85,7 +88,27 @@ function summarizeMatches(puuid, matches) {
     .sort((a, b) => b.games - a.games || b.wins - a.wins || a.championId.localeCompare(b.championId))
     .slice(0, 8);
 
-  return { recent: games.slice(0, 10), champions, gamesAnalyzed: games.length };
+  // Partite e campioni per ruolo (ruoli dell'app): servono a scegliere ruolo e pick quando si compila la sessione
+  const byRole = new Map();
+  for (const g of games) {
+    const role = APP_ROLES[g.role];
+    if (!role) continue;
+    const entry = byRole.get(role) ?? { role, games: 0, champs: new Map() };
+    entry.games += 1;
+    entry.champs.set(g.championId, (entry.champs.get(g.championId) ?? 0) + 1);
+    byRole.set(role, entry);
+  }
+  const roles = [...byRole.values()]
+    .map(({ role, games: n, champs }) => ({
+      role,
+      games: n,
+      champions: [...champs.entries()]
+        .map(([championId, count]) => ({ championId, games: count }))
+        .sort((a, b) => b.games - a.games || a.championId.localeCompare(b.championId)),
+    }))
+    .sort((a, b) => b.games - a.games || a.role.localeCompare(b.role));
+
+  return { recent: games.slice(0, 10), champions, roles, gamesAnalyzed: games.length };
 }
 
 function summarizeRanks(entries) {

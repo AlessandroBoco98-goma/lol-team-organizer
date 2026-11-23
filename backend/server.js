@@ -6,6 +6,7 @@ const axios = require('axios');
 const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 const { createRiotService } = require('./riot');
+const { ROLES, planComposition } = require('./autofill');
 const { WEEK_SESSION_TIME, nextWorkweekDates, planWeek, shouldConfirm, weekSessionId } = require('./weekly');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
 
@@ -54,6 +55,73 @@ const DDragon = {
 // Collections
 const sessionsRef = db.collection('sessions');
 const playersRef = db.collection('players');
+
+// Servizio Riot (rank, partite, ruoli e pick): attivo solo se c'è la chiave sul server
+const riot = process.env.RIOT_API_KEY ? createRiotService({ apiKey: process.env.RIOT_API_KEY }) : null;
+
+// Nomi dei campioni (id -> nome) da Data Dragon, in cache per qualche ora
+let championNamesCache = { at: 0, names: {} };
+async function championNames() {
+  if (Date.now() - championNamesCache.at < 6 * 60 * 60 * 1000 && Object.keys(championNamesCache.names).length > 0) {
+    return championNamesCache.names;
+  }
+  try {
+    const list = await DDragon.getChampions();
+    championNamesCache = { at: Date.now(), names: Object.fromEntries(list.map((c) => [c.id, c.name])) };
+  } catch {
+    // senza Data Dragon i campioni vengono mostrati con il loro id
+  }
+  return championNamesCache.names;
+}
+
+function httpError(status, message) {
+  return Object.assign(new Error(message), { httpStatus: status });
+}
+
+// Compila la squadra di una sessione con chi ha votato "Ci sono": ruolo abituale e campioni più giocati
+// letti dalle ultime partite Riot dell'account collegato (Riot ID e regione del giocatore).
+// Chi era già in sessione e ha votato sì resta com'è; chi non ha dati entra comunque, senza campioni.
+async function autofillSession(sessionId) {
+  const ref = sessionsRef.doc(sessionId);
+  const snap = await ref.get();
+  if (!snap.exists) throw httpError(404, 'Not found');
+  const session = snap.data();
+
+  const rosterSnap = await playersRef.get();
+  const voters = rosterSnap.docs
+    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter((p) => session.rsvp?.[p.id] === 'yes');
+  if (voters.length === 0) throw httpError(400, 'Nessuno ha ancora confermato');
+  if (voters.length > ROLES.length) {
+    throw httpError(400, `Hanno confermato in ${voters.length}: i ruoli sono ${ROLES.length}, scegli la squadra a mano da "Modifica"`);
+  }
+
+  // Un giocatore alla volta: ogni profilo fa una decina di chiamate e il limite di Riot è basso
+  const profiles = {};
+  const existingNames = new Set((session.players ?? []).map((p) => p.playerId ?? p.name));
+  for (const voter of voters) {
+    const alreadyIn = existingNames.has(voter.id) || existingNames.has(voter.name);
+    if (alreadyIn || !riot || !voter.riotId || !voter.region) continue;
+    try {
+      profiles[voter.id] = await riot.getProfile(voter.riotId, voter.region);
+    } catch (error) {
+      console.error(`Profilo Riot non letto per ${voter.name}:`, error.message);
+      if (error.status === 429) break; // limite raggiunto: inutile insistere con gli altri
+    }
+  }
+
+  const names = await championNames();
+  const { players, withoutData } = planComposition({
+    voters,
+    existing: session.players ?? [],
+    profiles,
+    nameOf: (id) => names[id] ?? id,
+  });
+
+  const normalized = sessionFields({ date: session.date, time: session.time, players, notes: session.notes }).players;
+  await ref.update({ players: normalized, updatedAt: new Date().toISOString(), autoFilledAt: new Date().toISOString() });
+  return { players: normalized, withoutData, riotEnabled: !!riot };
+}
 
 // API Routes
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
@@ -157,6 +225,22 @@ app.put('/api/sessions/:id/rsvp', async (req, res) => {
 
   if (!result) return res.status(404).json({ error: 'Not found' });
   res.json({ id: req.params.id, playerId: parsed.playerId, status: parsed.status, ...result });
+
+  // Appena la proposta diventa sessione vera la squadra si compila da sola. Dopo la risposta, così il voto
+  // non aspetta le chiamate a Riot; il browser aggiorna la sessione poco dopo.
+  if (result.confirmedNow) {
+    autofillSession(req.params.id).catch((error) => console.error('Compilazione automatica non riuscita:', error.message));
+  }
+});
+
+// Compila (o ricompila) la squadra con chi ha votato "Ci sono": è la stessa operazione che parte da sola alla conferma
+app.post('/api/sessions/:id/autofill', async (req, res) => {
+  try {
+    res.json(await autofillSession(req.params.id));
+  } catch (error) {
+    if (!error.httpStatus) throw error;
+    res.status(error.httpStatus).json({ error: error.message });
+  }
 });
 
 // Draft (ban, pick nemici, note): si salva a parte per non toccare la composizione né le risposte
@@ -231,8 +315,6 @@ app.delete('/api/players/:id', async (req, res) => {
 
 // Statistiche Riot di un giocatore (rank, ultime partite, build abituali).
 // La chiave Riot resta qui sul server; l'endpoint richiede la password del team per non consumare il limite di richieste.
-const riot = process.env.RIOT_API_KEY ? createRiotService({ apiKey: process.env.RIOT_API_KEY }) : null;
-
 app.get('/api/players/:id/riot', async (req, res) => {
   if (!TEAM_PASSWORD || req.get('x-team-password') !== TEAM_PASSWORD) {
     return res.status(401).json({ error: 'Password del team richiesta' });

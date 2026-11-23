@@ -80,6 +80,20 @@ export const setRsvp = async (sessionId: string, playerId: string, status: RsvpS
   return { confirmedNow: !!response.data.confirmedNow, sessionStatus: response.data.sessionStatus ?? 'confirmed' };
 };
 
+export interface AutofillResult {
+  players: SessionPlayer[];
+  // Nomi dei giocatori senza dati Riot utilizzabili: entrano in squadra ma senza campioni
+  withoutData: string[];
+  // false se sul server non c'è la chiave Riot
+  riotEnabled: boolean;
+}
+
+// Compila la squadra con chi ha votato "Ci sono": ruolo abituale e campioni più giocati dall'account Riot
+export const autofillSession = async (sessionId: string): Promise<AutofillResult> => {
+  const response = await api.post(`/api/sessions/${sessionId}/autofill`);
+  return response.data;
+};
+
 export const setDraft = async (sessionId: string, draft: Draft): Promise<Draft> => {
   const response = await api.put(`/api/sessions/${sessionId}/draft`, draft);
   return response.data.draft;
