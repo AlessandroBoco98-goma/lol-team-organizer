@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { AlertTriangle, Trophy, Users } from "lucide-react";
-import { apiErrorMessage, getChampionTraits, getPlayerRiot, getPlayers } from "../lib/api";
+import { apiErrorMessage, getChampionTraits, getPlayerRiot, getPlayers, getProMeta } from "../lib/api";
 import { championIcon } from "../lib/ddragon";
 import { buildCandidates, roleCoverage, roleGapLabel } from "../lib/comps";
 import { TIER_COLORS, formatRank, winRate } from "../lib/riot";
-import { ROLES, ROLE_COLORS, ROLE_LABELS, type Player, type RiotProfile } from "../types";
+import { ROLES, ROLE_COLORS, ROLE_LABELS, type Player, type RiotProfile, type Role } from "../types";
 import { pageTitle, sectionTitle } from "../lib/styles";
 import LoadingSpinner from "../components/LoadingSpinner";
 import MasteryList from "../components/MasteryList";
+import ProMetaPanel from "../components/ProMetaPanel";
 import RiotStatsButton from "../components/RiotStatsButton";
 
 // Un giocatore alla volta: ogni profilo fa una decina di chiamate a Riot e il limite è basso.
@@ -41,6 +42,7 @@ export default function Roster() {
   const { data: players = [], isLoading } = useQuery({ queryKey: ["players"], queryFn: getPlayers });
   // I tratti servono a capire in quali ruoli si gioca un campione; senza, la maestria vale per ogni ruolo
   const { data: traits = {} } = useQuery({ queryKey: ["traits"], queryFn: getChampionTraits, staleTime: Infinity, retry: 1 });
+  const { data: proMeta } = useQuery({ queryKey: ["pro-meta"], queryFn: getProMeta, staleTime: 60 * 60_000, retry: 1 });
   const resultOf = useRosterProfiles(players);
 
   if (isLoading) return <LoadingSpinner />;
@@ -107,6 +109,23 @@ export default function Roster() {
           La barra è il comfort (maestria e partite recenti nel ruolo); il numero a destra sono i campioni a cui il giocatore è a suo agio in quel ruolo.
         </p>
       </section>
+
+      {proMeta && (
+        <ProMetaPanel
+          meta={proMeta}
+          known={Object.fromEntries(
+            ROLES.map((role) => {
+              const map = new Map<string, string[]>();
+              for (const p of players) {
+                for (const c of buildCandidates(profileOf(p.id), role, traits, 10)) {
+                  if (c.comfort >= 0.25 && !c.offRole) map.set(c.championId, [...(map.get(c.championId) ?? []), p.name]);
+                }
+              }
+              return [role, map];
+            }),
+          ) as Record<Role, Map<string, string[]>>}
+        />
+      )}
 
       <section className="space-y-4">
         <h2 className={sectionTitle}>

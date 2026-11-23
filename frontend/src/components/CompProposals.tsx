@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Layers } from "lucide-react";
 import { toast } from "sonner";
-import { apiErrorMessage, getChampionTraits, getPlayerRiot, updateSession } from "../lib/api";
+import { apiErrorMessage, getChampionTraits, getPlayerRiot, getProMeta, updateSession } from "../lib/api";
 import { championIcon } from "../lib/ddragon";
 import { buildCandidates, proposeComps, type Candidate, type Comp, type CompPlayer } from "../lib/comps";
 import { MAX_CHAMPIONS, ROLE_COLORS, ROLE_LABELS, type Champion, type Session, type SessionPlayer } from "../types";
@@ -27,6 +27,9 @@ export default function CompProposals({
 
   const { data: traits = {} } = useQuery({ queryKey: ["traits"], queryFn: getChampionTraits, staleTime: Infinity, retry: 1 });
 
+  // Meta dei tornei: opzionale, se il server non lo ha le comp si calcolano senza
+  const { data: proMeta } = useQuery({ queryKey: ["pro-meta"], queryFn: getProMeta, staleTime: 60 * 60_000, retry: 1 });
+
   // Stessa chiave della situazione dei giocatori: i profili vengono dalla cache, nessuna chiamata in più
   const profiles = useQueries({
     queries: players.map((p) => ({
@@ -43,7 +46,7 @@ export default function CompProposals({
   const compPlayers: CompPlayer[] = useMemo(
     () =>
       players.map((p, i) => {
-        let candidates: Candidate[] = buildCandidates(profiles[i]?.data, p.role, traits, 6);
+        let candidates: Candidate[] = buildCandidates(profiles[i]?.data, p.role, traits, 8, proMeta);
         // Senza dati Riot si parte dai campioni già scelti per il giocatore, con un comfort neutro
         if (candidates.length === 0) {
           candidates = p.champions.map((c) => ({ championId: c.id, comfort: 0.35, points: 0, roleGames: 0 }));
@@ -52,10 +55,13 @@ export default function CompProposals({
       }),
     // profileKey cambia quando arrivano i dati di un profilo
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [players, traits, profileKey],
+    [players, traits, proMeta, profileKey],
   );
 
-  const comps = useMemo(() => proposeComps(compPlayers, traits), [compPlayers, traits]);
+  const comps = useMemo(
+    () => proposeComps(compPlayers, traits, { hasMeta: !!proMeta, names: (id) => names.get(id) ?? id }),
+    [compPlayers, traits, proMeta, names],
+  );
 
   const apply = useMutation({
     mutationFn: (comp: Comp) => {
@@ -130,6 +136,12 @@ export default function CompProposals({
                       <p className="truncate text-sm font-medium">{p.championId ? names.get(p.championId) ?? p.championId : "Da scegliere"}</p>
                       <p className="truncate text-xs text-lol-mist">
                         <span style={{ color: ROLE_COLORS[p.role] }}>{ROLE_LABELS[p.role]}</span> · {p.name}
+                        {p.offRole && <span className="text-lol-gold"> · fuori ruolo</span>}
+                        {p.meta && p.meta.pickRate >= 0.03 && (
+                          <span title={`Nei tornei: ${p.meta.games} partite, ${Math.round(p.meta.winRate * 100)}% di vittorie`}>
+                            {" "}· pro {Math.round(p.meta.pickRate * 100)}%
+                          </span>
+                        )}
                       </p>
                     </div>
                     {p.championId && (
@@ -156,6 +168,12 @@ export default function CompProposals({
             </article>
           ))}
         </div>
+      )}
+      {proMeta && hasPicks && (
+        <p className="text-xs text-lol-mist">
+          Meta dei tornei: ultimi {proMeta.windowDays} giorni, {proMeta.games} partite. Dati:{" "}
+          <a href={proMeta.sourceUrl} target="_blank" rel="noreferrer" className="underline">{proMeta.source}</a> ({proMeta.license}).
+        </p>
       )}
     </section>
   );

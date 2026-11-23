@@ -113,6 +113,26 @@ export interface ChampionTraits {
 
 export type TraitMap = Record<string, ChampionTraits>;
 
+// Meta dei tornei professionistici (backend: Leaguepedia, CC BY-SA 3.0): per campione e ruolo
+export interface ProMetaStat {
+  games: number;
+  wins: number;
+  pickRate: number;
+  winRate: number;
+  score: number;
+}
+
+export interface ProMeta {
+  updatedAt: string;
+  windowDays: number;
+  games: number;
+  tournaments: string[];
+  source: string;
+  sourceUrl: string;
+  license: string;
+  champions: Record<string, Partial<Record<Role, ProMetaStat>>>;
+}
+
 // Partite e campioni giocati in un ruolo (ruoli dell'app)
 export interface RiotRoleStat {
   role: Role;

@@ -62,9 +62,30 @@ describe('buildCandidates', () => {
     expect(c.every((x) => x.comfort > 0 && x.comfort <= 1)).toBe(true);
   });
 
-  it('un campione con maestria ma di un altro ruolo non conta', () => {
+  it('un campione molto usato ma di un altro ruolo entra come "fuori ruolo" con il comfort dimezzato', () => {
     const p = profile([], [['Garen', 900_000], ['Ahri', 100_000]]);
-    expect(buildCandidates(p, 'MID', traits).map((x) => x.championId)).toEqual(['Ahri']);
+    const c = buildCandidates(p, 'MID', traits);
+    expect(c.map((x) => x.championId)).toEqual(['Ahri', 'Garen']);
+    expect(c[0].offRole).toBeUndefined();
+    expect(c[1].offRole).toBe(true);
+    expect(c[1].comfort).toBeCloseTo(0.3, 1);
+  });
+
+  it('solo i 5 più usati entrano fuori ruolo: i campioni oltre il quinto restano esclusi', () => {
+    const p = profile([], [
+      ['Garen', 900_000], ['Ornn', 800_000], ['Vi', 700_000], ['Jinx', 600_000], ['Leona', 500_000], ['Lulu', 400_000], ['Ahri', 50_000],
+    ]);
+    const ids = buildCandidates(p, 'MID', traits, 20).map((x) => x.championId);
+    expect(ids).toContain('Ahri');
+    expect(ids).toContain('Leona');
+    expect(ids).not.toContain('Lulu');
+  });
+
+  it('allega i dati del meta pro per campione e ruolo', () => {
+    const p = profile([], [['Ahri', 100_000]]);
+    const meta = { updatedAt: '', windowDays: 45, games: 100, tournaments: [], source: 'Leaguepedia', sourceUrl: '', license: '', champions: { Ahri: { MID: { games: 20, wins: 12, pickRate: 0.2, winRate: 0.6, score: 0.8 } } } };
+    expect(buildCandidates(p, 'MID', traits, 8, meta)[0].meta?.pickRate).toBe(0.2);
+    expect(buildCandidates(p, 'MID', traits, 8)[0].meta).toBeUndefined();
   });
 
   it('un campione giocato nel ruolo conta anche se i suoi ruoli noti sono altri (off-meta)', () => {
@@ -107,6 +128,15 @@ describe('scoreComp', () => {
   it('campioni senza tratti usano valori neutri e non fanno fallire il calcolo', () => {
     expect(() => scoreComp([{ championId: 'Sconosciuto', comfort: 0.5 }], {})).not.toThrow();
     expect(scoreComp([], traits).score).toBe(0);
+  });
+
+  it('con il meta dei tornei un pick forte fa salire il punteggio, senza meta i pesi non cambiano', () => {
+    const stat = { games: 30, wins: 18, pickRate: 0.3, winRate: 0.6, score: 1 };
+    const withMeta = scoreComp([{ championId: 'Ahri', comfort: 0.6, meta: stat }], traits, true);
+    const noMeta = scoreComp([{ championId: 'Ahri', comfort: 0.6 }], traits, true);
+    expect(withMeta.score).toBeGreaterThan(noMeta.score);
+    expect(withMeta.breakdown.meta).toBe(1);
+    expect(scoreComp([{ championId: 'Ahri', comfort: 0.6 }], traits).breakdown.meta).toBeNull();
   });
 
   it('prima linea e controllo salgono con campioni resistenti e con CC', () => {

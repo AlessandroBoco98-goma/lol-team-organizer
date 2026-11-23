@@ -7,6 +7,7 @@ const { FieldValue, FieldPath } = require('firebase-admin/firestore');
 const { db } = require('./firebase');
 const { createRiotService } = require('./riot');
 const { createTraitsService } = require('./traits');
+const { createProMetaService } = require('./proMeta');
 const { ROLES, planComposition, applyVote, roleTakenBy } = require('./autofill');
 const { WEEK_SESSION_TIME, nextWorkweekDates, planWeek, shouldConfirm, weekSessionId } = require('./weekly');
 const { parseRiotFields, parsePhone, parseDraft, parseRsvp, validateSession, sessionFields } = require('./validation');
@@ -81,6 +82,20 @@ async function championKeys() {
 
 // Servizio Riot (rank, partite, ruoli, maestrie e pick): attivo solo se c'è la chiave sul server
 const riot = process.env.RIOT_API_KEY ? createRiotService({ apiKey: process.env.RIOT_API_KEY, championKeys }) : null;
+
+// Meta dei tornei (pick rate e winrate per campione e ruolo) da Leaguepedia: serve il nome inglese -> id di Data Dragon
+let englishNamesCache = { at: 0, map: {} };
+async function championIdsByEnglishName() {
+  if (Date.now() - englishNamesCache.at < 6 * 60 * 60 * 1000 && Object.keys(englishNamesCache.map).length > 0) return englishNamesCache.map;
+  try {
+    const list = await DDragon.getChampions(null, 'en_US');
+    englishNamesCache = { at: Date.now(), map: Object.fromEntries(list.map((c) => [c.name, c.id])) };
+  } catch {
+    // restano gli ultimi nomi noti
+  }
+  return englishNamesCache.map;
+}
+const proMetaService = createProMetaService({ nameToId: championIdsByEnglishName });
 
 // Tratti dei campioni (danno, resistenza, controllo, mobilità, utilità, ruoli) da Community Dragon e Meraki
 const traitsService = createTraitsService({ listChampions: championList });
@@ -436,6 +451,19 @@ app.get('/api/champion-traits', async (req, res) => {
   res.json(traits);
 });
 
+// Meta dei tornei professionistici (ultimi 45 giorni, tornei principali), in cache 6 ore.
+// Fonte Leaguepedia, licenza CC BY-SA 3.0: la citazione è nel campo `source`/`license` e l'app la mostra.
+app.get('/api/pro-meta', async (req, res) => {
+  let meta = null;
+  try {
+    meta = await proMetaService.getMeta();
+  } catch (error) {
+    console.error('Meta dei tornei non disponibile:', error.message);
+  }
+  if (!meta) return res.status(503).json({ error: 'Meta dei tornei non disponibile al momento' });
+  res.json(meta);
+});
+
 // Champions
 app.get('/api/champions', async (req, res) => {
   try {
@@ -450,4 +478,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   // Scalda la cache dei tratti in background: la prima richiesta non aspetta un centinaio di download
   championTraits();
+  proMetaService.getMeta().catch(() => {});
 });

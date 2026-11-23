@@ -1,5 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, Region, RiotProfile, Role, RsvpStatus, TraitMap } from '../types';
+import type { Session, SessionPlayer, SessionStatus, Champion, Draft, Player, ProMeta, Region, RiotProfile, Role, RsvpStatus, TraitMap } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const PASSWORD_KEY = 'lol-team-password';
@@ -153,6 +153,12 @@ export const getPlayerRiot = async (playerId: string): Promise<RiotProfile> => {
 // Tratti dei campioni (danno, resistenza, controllo, mobilità, utilità, ruoli): pubblici, il server li tiene in cache 24 ore
 export const getChampionTraits = async (): Promise<TraitMap> => {
   const response = await api.get('/api/champion-traits');
+  return response.data;
+};
+
+// Meta dei tornei (pick rate e winrate per campione e ruolo): pubblico, in cache 6 ore sul server
+export const getProMeta = async (): Promise<ProMeta> => {
+  const response = await api.get('/api/pro-meta');
   return response.data;
 };
 
